@@ -623,7 +623,7 @@ async function runScheduledNotificationsAndReports(log) {
               .get();
             const pointsHistoryList = pointsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
-            for (const student of studentsList) {
+            const sendPromises = studentsList.map(async (student) => {
               const parentPhone = getRecipientPhoneBackend(student);
               if (!parentPhone) {
                 await db.collection('reportSendingLogs').add({
@@ -634,7 +634,7 @@ async function runScheduledNotificationsAndReports(log) {
                   errorMessage: 'لا توجد أرقام هواتف مسجلة للمخدوم أو والديه.',
                   timestamp: new Date().toISOString()
                 });
-                continue;
+                return;
               }
               
               const variables = compileStudentVariablesBackend(student, filters, pointsHistoryList, nowInEgypt);
@@ -655,7 +655,9 @@ async function runScheduledNotificationsAndReports(log) {
                 errorMessage: success ? null : 'فشل إرسال القالب التلقائي عبر API - تأكد من ربط الرقم والقالب بنجاح',
                 timestamp: new Date().toISOString()
               });
-            }
+            });
+            
+            await Promise.all(sendPromises);
           } catch (studentsErr) {
             log(`[Periodic Schedules ❌] Error processing students schedule ${schId}: ${studentsErr.message}`);
           }
