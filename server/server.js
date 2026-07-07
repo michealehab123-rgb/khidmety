@@ -316,19 +316,7 @@ app.post('/api/register-token', async (req, res) => {
 });
 
 // Endpoint لمعالجة الإشعارات المجدولة
-app.all('/api/process-scheduled', async (req, res) => {
-  // منع الكاش تماماً على مستوى Vercel CDN والشبكة لضمان التشغيل الحي في كل دقيقة
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Surrogate-Control', 'no-store');
-
-  const debugLogs = [];
-  const log = (msg) => {
-    console.log(msg);
-    debugLogs.push(msg);
-  };
-
+async function runScheduledNotificationsAndReports(log) {
   try {
     const now = new Date();
     const cairoString = new Date().toLocaleString("sv-SE", { timeZone: "Africa/Cairo" });
@@ -852,9 +840,29 @@ app.all('/api/process-scheduled', async (req, res) => {
       }
     }
 
-    res.status(200).json({ success: true, processedCount: processedCount, logs: debugLogs });
+    return processedCount;
   } catch (error) {
     log(`[Scheduled Cron ❌] Error: ${error.message}`);
+    throw error;
+  }
+}
+
+app.all('/api/process-scheduled', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+
+  const debugLogs = [];
+  const log = (msg) => {
+    console.log(msg);
+    debugLogs.push(msg);
+  };
+
+  try {
+    const processedCount = await runScheduledNotificationsAndReports(log);
+    res.status(200).json({ success: true, processedCount, logs: debugLogs });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message, logs: debugLogs });
   }
 });
@@ -1328,6 +1336,30 @@ const sendWhatsAppTemplateMessage = async (token, phoneId, to, templateName, var
         return false;
     }
 };
+
+// Local cron simulation loop (checks every 60 seconds)
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_LOCAL_CRON === 'true') {
+  console.log('[Local Cron] Local cron runner initialized. Checking schedules every 60 seconds...');
+  
+  // Run once immediately on start
+  setTimeout(async () => {
+    const log = (msg) => console.log(`[Local Cron Initial Run] ${msg}`);
+    try {
+      await runScheduledNotificationsAndReports(log);
+    } catch (err) {
+      console.error('[Local Cron Initial Run Error]:', err.message);
+    }
+  }, 5000);
+
+  setInterval(async () => {
+    const log = (msg) => console.log(`[Local Cron Worker] ${msg}`);
+    try {
+      await runScheduledNotificationsAndReports(log);
+    } catch (err) {
+      console.error('[Local Cron Worker Error]:', err.message);
+    }
+  }, 60000);
+}
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`Notification Server running on port ${PORT}`));
