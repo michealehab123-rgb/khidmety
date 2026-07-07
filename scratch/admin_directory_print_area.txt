@@ -1,0 +1,150 @@
+             </span>
+                        </div>
+                    </div>
+
+                    {/* Print Header */}
+                    <div className="hidden print:flex mb-6 border-b-2 border-slate-800 dark:border-slate-700 pb-3 justify-between items-center w-full">
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 leading-normal">
+                                كشف المخدومين - مدرسة الأحد
+                            </h2>
+                            <p className="text-sm font-bold text-slate-655 dark:text-slate-400">
+                                {selectedStageTab2 !== 'الكل' && `المرحلة: ${selectedStageTab2}`} 
+                                {selectedClassTab2 !== 'الكل' && ` - الفصل: ${selectedClassTab2}`}
+                            </p>
+                        </div>
+                        <div className="text-left">
+                            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">العدد الإجمالي</div>
+                            <div className="text-xl font-black text-slate-800 dark:text-slate-200">{filteredStudentsTab2.length} مخدوم</div>
+                        </div>
+                    </div>
+
+                    {showAddForm && (
+                        <form onSubmit={handleAddStudent} className="bg-white dark:bg-[#1e293b] p-6 rounded-xl border border-slate-200 dark:border-slate-800 mb-8 transition-colors duration-300">
+                            <h2 className="text-xl font-bold mb-6 text-slate-800 dark:text-slate-100">إضافة بيانات مخدوم</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">الاسم</label>
+                                    <input className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} required />
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">المرحلة الدراسية</label>
+                                    <select
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+                                        value={newStudent.schoolGrade}
+                                        onChange={e => handleStageChange(e.target.value)}
+                                        disabled={!isGeneralAdmin}
+                                        required
+                                    >
+                                        <option value="">اختر المرحلة</option>
+                                        <option value="ابتدائي">ابتدائي</option>
+                                        <option value="اعدادي">اعدادي</option>
+                                        <option value="ثانوي">ثانوي</option>
+                                    </select>
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="block text-sm font-bold text-slate-650 dark:text-slate-400 mb-2">الكود (تلقائي)</label>
+                                    <input dir="ltr" className="w-full p-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-slate-400 dark:text-slate-505 cursor-not-allowed text-left" value={newStudent.code} disabled={true} required />
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">كلمة المرور (تلقائي)</label>
+                                    <input dir="ltr" className="w-full p-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-slate-400 dark:text-slate-555 cursor-not-allowed text-left" value={newStudent.password} disabled={true} required />
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">الفصل (للتوزيع)</label>
+                                    <select
+                                        className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300 disabled:opacity-50"
+                                        value={newStudent.assignedClass}
+                                        onChange={e => setNewStudent({ ...newStudent, assignedClass: e.target.value })}
+                                        disabled={!newStudent.schoolGrade || (!isGeneralAdmin && (authorizedClasses || []).length <= 1)}
+                                    >
+                                        {!newStudent.schoolGrade
+                                            ? <option value="" disabled>اختر المرحلة الدراسية أولاً</option>
+                                            : (
+                                                !isGeneralAdmin ? (
+                                                    <>
+                                                        {/* Enforce total isolation: only map over the user's specific authorized classes */}
+                                                        {(authorizedClasses || []).map(cls => (
+                                                            <option key={cls} value={cls}>{cls}</option>
+                                                        ))}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {/* Global General Admins only can view the full mapping array */}
+                                                        <option value="">اختر الفصل</option>
+                                                        {(STAGE_CLASS_MAP[newStudent.schoolGrade] || []).map(cls => (
+                                                            <option key={cls} value={cls}>{cls}</option>
+                                                        ))}
+                                                    </>
+                                                )
+                                            )
+                                        }
+                                    </select>
+                                </div>
+                                <div className="md:col-span-2 space-y-4">
+                                    <label className="block text-sm font-bold text-slate-655 dark:text-slate-400">أرقام التليفون</label>
+                                    {newStudent.phones.map((phone, idx) => (
+                                        <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-200">
+                                            <input className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={phone} onChange={e => {
+                                                const newPhones = [...newStudent.phones];
+                                                newPhones[idx] = e.target.value;
+                                                setNewStudent({ ...newStudent, phones: newPhones });
+                                            }} placeholder="012XXXXXXXX" />
+                                            {idx === newStudent.phones.length - 1 ? (
+                                                <button type="button" onClick={() => setNewStudent({ ...newStudent, phones: [...newStudent.phones, ''] })} className="p-3 bg-blue-100 dark:bg-blue-955/40 text-blue-600 dark:text-blue-400 rounded-lg"><Plus size={20} /></button>
+                                            ) : (
+                                                <button type="button" onClick={() => {
+                                                    const newPhones = newStudent.phones.filter((_, i) => i !== idx);
+                                                    setNewStudent({ ...newStudent, phones: newPhones });
+                                                }} className="p-3 bg-rose-100 dark:bg-rose-955/40 text-rose-600 dark:text-rose-400 rounded-lg"><X size={20} /></button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="md:col-span-2 space-y-4">
+                                    <label className="block text-sm font-bold text-slate-655 dark:text-slate-400">العناوين</label>
+                                    {newStudent.addresses.map((address, idx) => (
+                                        <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-200">
+                                            <input className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={address} onChange={e => {
+                                                const newAddresses = [...newStudent.addresses];
+                                                newAddresses[idx] = e.target.value;
+                                                setNewStudent({ ...newStudent, addresses: newAddresses });
+                                            }} placeholder="المنطقة، الشارع، رقم الشقة..." />
+                                            {idx === newStudent.addresses.length - 1 ? (
+                                                <button type="button" onClick={() => setNewStudent({ ...newStudent, addresses: [...newStudent.addresses, ''] })} className="p-3 bg-blue-100 dark:bg-blue-955/40 text-blue-600 dark:text-blue-400 rounded-lg"><Plus size={20} /></button>
+                                            ) : (
+                                                <button type="button" onClick={() => {
+                                                    const newAddresses = newStudent.addresses.filter((_, i) => i !== idx);
+                                                    setNewStudent({ ...newStudent, addresses: newAddresses });
+                                                }} className="p-3 bg-rose-100 dark:bg-rose-955/40 text-rose-600 dark:text-rose-400 rounded-lg"><X size={20} /></button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">أب الاعتراف</label>
+                                    <input className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={newStudent.fatherOfConfession} onChange={e => setNewStudent({ ...newStudent, fatherOfConfession: e.target.value })} placeholder="قدس أبونا..." />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">تاريخ الميلاد</label>
+                                    <input type="date" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 text-right transition-colors duration-300" value={newStudent.birthDate} onChange={e => setNewStudent({ ...newStudent, birthDate: e.target.value })} />
+                                </div>
+                                <button type="submit" disabled={isAdding} className="md:col-span-2 bg-blue-600 dark:bg-blue-700 dark:hover:bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 transition-all mt-2">
+                                    {isAdding ? 'جاري الحفظ...' : 'حفظ البيانات'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
+                    <div className="overflow-x-auto bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 print:border-none print:shadow-none print:bg-transparent print:overflow-visible">
+                        <table className="w-full text-right border-collapse">
+                            <thead>
+                                <tr className="bg-slate-100 dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                                    <th className="p-3">كود المخدوم</th>
+                                    <th className="p-3">اسم المخدوم</th>
+                                    <th className="p-3">المرحلة</th>
+                                    <th className="p-3">الفصل</th>
+                                    <th className="p-3">أرقام التليفون</th>
+                                    <th className="p-3">العناوين</th>

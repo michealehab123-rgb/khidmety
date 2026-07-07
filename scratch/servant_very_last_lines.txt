@@ -1,0 +1,50 @@
+2257:                             display: block !important;
+2258:                             width: 8.5cm !important;
+2259:                             height: 5.4cm !important;
+2260:                             page-break-after: always !important;
+2261:                             break-after: page !important;
+2262:                             position: relative !important;
+2263:                             box-sizing: border-box !important;
+2264:                             margin: 0 !important;
+2265:                             padding: 0 !important;
+2266:                         }
+2267:                         
+2268:                         body.printing-bulk .bulk-card-inner {
+2269:                             width: 8.5cm !important;
+2270:                             height: 5.4cm !important;
+2271:                             border-radius: 0.2cm !important;
+2272:                             border: 0.03cm solid rgba(245, 158, 11, 0.3) !important;
+2273:                             box-sizing: border-box !important;
+2274:                             background: linear-gradient(to bottom, #1e3a8a, #0f172a, #020617) !important;
+2275:                             -webkit-print-color-adjust: exact !important;
+2276:                             print-color-adjust: exact !important;
+2277:                             position: relative !important;
+2278:                             overflow: hidden !important;
+2279:                             padding: 4% !important;
+2280:                             display: flex !important;
+2281:                             flex-direction: column !important;
+2282:                             justify-content: space-between !important;
+2283:                             container-type: inline-size;
+2284:                             container-name: card;
+2285:                         }
+2286:                         
+2287:                         /* Fix transparent clip text gradient bug in printing */
+2288:                         body.printing-bulk .bulk-card-inner h2 {
+2289:                             background: none !important;
+2290:                             -webkit-background-clip: unset !important;
+2291:                             background-clip: unset !important;
+2292:                             -webkit-text-fill-color: #fbbf24 !important;
+2293:                             color: #fbbf24 !important;
+2294:                         }
+2295:                     }
+2296:                 `}</style>
+2297:             )}
+2298:             <style>{`
+2299:                 .bulk-print-container {
+2300:                     display: none;
+2301:                 }
+2302:             `}</style>
+2303:         </div>
+2304:     );
+2305: 
+2306: }

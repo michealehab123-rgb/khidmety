@@ -1,0 +1,501 @@
+505: function StudentRow({ student, addPoints, markAttendance, markLiturgy, deleteStudent, openAttendanceModal, resetPassword, shortcuts, addShortcut, removeShortcut, consecutiveGiftEnabled, claimGift, isBonus = false, storeVisible = true }) {
+506:     const [amount, setAmount] = useState(0);
+507:     const [showAddShortcut, setShowAddShortcut] = useState(false);
+508:     const [newShortcut, setNewShortcut] = useState('');
+509:     const [isSubmitting, setIsSubmitting] = useState(false);
+510:     const [isSubmittingLiturgy, setIsSubmittingLiturgy] = useState(false);
+511:     const today = new Date();
+512:     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+513:     const [isMutatingBonus, setIsMutatingBonus] = useState(false);
+514:     const [attendancePointsInput, setAttendancePointsInput] = useState('');
+515: 
+516:     const isPointsValid = storeVisible === false
+517:         ? /^\d*$/.test(attendancePointsInput)
+518:         : /^\d+$/.test(attendancePointsInput);
+519: 
+520:     const handleAdd = () => {
+521:         if (amount > 0) {
+522:             addPoints(student.id, amount);
+523:             setAmount(0);
+524:         }
+525:     };
+526: 
+527:     const handleSubtract = () => {
+528:         if (amount > 0) {
+529:             addPoints(student.id, -amount);
+530:             setAmount(0);
+531:         }
+532:     };
+533: 
+534:     const addNewShortcut = () => {
+535:         const val = parseInt(newShortcut);
+536:         if (val > 0 && !shortcuts.includes(val)) {
+537:             addShortcut(val);
+538:             setNewShortcut('');
+539:             setShowAddShortcut(false);
+540:         }
+541:     };
+542: 
+543:     const handleMark = async () => {
+544:         if (isSubmitting) return;
+545:         if (!isPointsValid) return;
+546:         setIsSubmitting(true);
+547:         try {
+548:             await markAttendance(student.id, Number(attendancePointsInput));
+549:         } catch (error) {
+550:             console.error("Error marking attendance:", error);
+551:         } finally {
+552:             setIsSubmitting(false);
+553:         }
+554:     };
+555: 
+556:     const isFriday = new Date().getDay() === 5;
+557:     const isAttendedToday = student.attendance?.some(dateStr => {
+558:         const d = new Date(dateStr);
+559:         const today = new Date();
+560:         return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+561:     });
+562: 
+563:     return (
+564:         <div className={`bg-white dark:bg-[#1e293b] p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 mb-4 transition-colors duration-300 ${isAttendedToday && !isBonus ? 'attended-today dark:bg-[#1e293b]/70' : ''}`}>
+565:             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+566:                 <div className="flex-1">
+567:                     <div className="flex items-center gap-2 mb-2">
+568:                         <Link to={`/servant/student/${student.id}`} className="text-xl font-bold text-slate-800 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+569:                             {student.name}
+570:                         </Link>
+571:                         <span className="text-slate-400 dark:text-slate-555 font-mono text-sm">#{student.code}</span>
+572:                     </div>
+573:                     
+574:                     <div className="flex flex-wrap gap-4 text-sm font-medium text-slate-555 dark:text-slate-400 mb-4">
+575:                         <div className="flex items-center gap-1">
+576:                             <span className="text-blue-600 dark:text-blue-400 font-bold">صفات:</span> <span className="text-slate-800 dark:text-slate-200">{student.points || 0}</span>
+577:                         </div>
+578:                         <div className="flex items-center gap-1">
+579:                             <span className="text-emerald-600 dark:text-emerald-400 font-bold">حضور:</span> <span className="text-slate-800 dark:text-slate-200">{student.attendance ? student.attendance.length : 0}</span>
+580:                         </div>
+581:                         <div className="flex items-center gap-2">
+582:                            <span className="text-slate-400 dark:text-slate-555">{student.schoolGrade}</span>
+583:                            {student.assignedClass && (
+584:                                <span className="text-xs text-slate-500 dark:text-white font-bold">
+585:                                    فصل: {student.assignedClass}
+586:                                </span>
+587:                            )}
+588:                         </div>
+589:                     </div>
+590:                 </div>
+591: 
+592:                 <div className="flex flex-col items-end gap-2 shrink-0 w-full md:w-auto">
+593:                     <div className="flex flex-wrap gap-2 items-center justify-end w-full">
+594:                         {!isBonus && consecutiveGiftEnabled && ((student.attendanceStreak || 0) > 0 || (student.pendingGifts || 0) > 0) && (
+595:                             <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg self-center">
+596:                                 {(student.attendanceStreak || 0) > 0 && (
+597:                                     <span className="text-xs font-bold text-orange-500 flex items-center gap-0.5" dir="ltr">
+598:                                         🔥 {student.attendanceStreak}
+599:                                     </span>
+600:                                 )}
+601:                                 {(student.pendingGifts || 0) > 0 && (
+602:                                     <button
+603:                                         onClick={() => claimGift(student.id, student.pendingGifts)}
+604:                                         className="bg-amber-500/20 text-amber-500 hover:bg-amber-500/40 px-2 py-0.5 rounded text-xs font-bold transition-colors shrink-0 flex items-center gap-0.5"
+605:                                     >
+606:                                         🎁 إستلام ({student.pendingGifts})
+607:                                     </button>
+608:                                 )}
+609:                             </div>
+610:                         )}
+611:                         {!isBonus && (
+612:                             <button onClick={() => openAttendanceModal(student.id)} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 font-bold">
+613:                                 السجل
+614:                             </button>
+615:                         )}
+616:                         {!isBonus && (
+617:                             <button onClick={() => resetPassword(student.id, student.name, student.code)} className="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-955/30 rounded-lg" title="تصفير الباسورد">
+618:                                 <Key size={18} />
+619:                             </button>
+620:                         )}
+621:                         {!isBonus && (
+622:                             <button onClick={() => deleteStudent(student.id, student.name)} className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-955/30 rounded-lg" title="حذف">
+623:                                 <Trash2 size={18} />
+624:                             </button>
+625:                         )}
+626:                     </div>
+627:                 </div>
+628:             </div>
+629: 
+630:             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-4">
+631:                 <div className="flex items-center gap-2.5 p-2 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+632:                     <span className="text-sm font-black text-slate-700 dark:text-slate-300 select-none px-1">
+633:                         {isBonus ? 'نقاط البونص:' : 'نقاط الحضور:'}
+634:                     </span>
+635:                     <input 
+636:                         type="number" 
+637:                         value={attendancePointsInput} 
+638:                         onChange={(e) => setAttendancePointsInput(e.target.value)}
+639:                         className={`w-20 text-center bg-transparent border-none outline-none focus:outline-none focus:ring-0 font-black text-lg \${
+640:                             !isPointsValid && attendancePointsInput !== ''
+641:                             ? 'text-whitebg-rose-50 dark:bg-rose-955/20 border border-rose-300 dark:border-rose-800 rounded-lg' 
+642:                             : 'text-slate-900 dark:text-white'
+643:                         }`}
+644:                         placeholder="النقاط"
+645:                         min="0"
+646:                     />
+647:                 </div>
+648: 
+649:                 <div className="flex flex-wrap gap-1.5 items-center">
+650:                     {shortcuts.map(val => (
+651:                         <div key={val} className="flex items-center bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 rounded-lg overflow-hidden text-xs">
+652:                             <button type="button" onClick={() => setAttendancePointsInput(String(val))} className="pl-2.5 pr-1.5 py-1 font-black bg-transparent transition-all hover:bg-purple-100/50 dark:hover:bg-purple-900/30">
+653:                                 {val}+
+654:                             </button>
+655:                             <button type="button" onClick={() => removeShortcut(val)} className="pr-2 pl-1 py-1 text-slate-400 hover:text-rose-500 transition-colors bg-transparent border-none">
+656:                                 <X size={12} />
+657:                             </button>
+658:                         </div>
+659:                     ))}
+660:                     <button type="button" onClick={() => setShowAddShortcut(true)} className="px-2 py-1 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 border-dashed rounded-lg text-xs hover:bg-purple-50 dark:hover:bg-purple-955/20 font-bold">+</button>
+661:                 </div>
+662: 
+663:                 {isBonus && (
+664:                     <div className="mr-auto flex gap-2">
+665:                         <button 
+666:                             type="button"
+667:                             onClick={async () => {
+668:                                 if (isMutatingBonus) return;
+669:                                 if (isPointsValid && Number(attendancePointsInput) > 0) {
+670:                                     if (!window.confirm(`هل أنت متأكد أنك تريد خصم {attendancePointsInput} صفة بونص للمخدوم؟`)) {
+671:                                         return;
+672:                                     }
+673:                                     setIsMutatingBonus(true);
+674:                                     try {
+675:                                         await addPoints(student.id, -Number(attendancePointsInput));
+676:                                         setAttendancePointsInput('');
+677:                                     } catch (error) {
+678:                                         console.error(error);
+679:                                     } finally {
+680:                                         setIsMutatingBonus(false);
+681:                                     }
+682:                                 }
+683:                             }}
+684:                             disabled={isMutatingBonus || !isPointsValid || Number(attendancePointsInput) <= 0}
+685:                             className={`px-6 py-2 rounded-lg font-bold transition-all \${
+686:                                 isPointsValid && Number(attendancePointsInput) > 0 && !isMutatingBonus
+687:                                 ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-sm'
+688:                                 : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-555 cursor-not-allowed'
+689:                             }`}
+690:                         >
+691:                             خصم بونص
+692:                         </button>
+693:                         <button 
+694:                             type="button"
+695:                             onClick={async () => {
+696:                                 if (isMutatingBonus) return;
+697:                                 if (isPointsValid && Number(attendancePointsInput) > 0) {
+698:                                     setIsMutatingBonus(true);
+699:                                     try {
+700:                                         await addPoints(student.id, Number(attendancePointsInput));
+701:                                         setAttendancePointsInput('');
+702:                                     } catch (error) {
+703:                                         console.error(error);
+704:                                     } finally {
+705:                                         setIsMutatingBonus(false);
+706:                                     }
+707:                                 }
+708:                             }}
+709:                             disabled={isMutatingBonus || !isPointsValid || Number(attendancePointsInput) <= 0}
+710:                             className={`px-6 py-2 rounded-lg font-bold transition-all \${
+711:                                 isPointsValid && Number(attendancePointsInput) > 0 && !isMutatingBonus
+712:                                 ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+713:                                 : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-555 cursor-not-allowed'
+714:                             }`}
+715:                         >
+716:                             إضافة بونص
+717:                         </button>
+718:                     </div>
+719:                 )}
+720: 
+721:                 {!isBonus && (
+722:                     <div className="mr-auto flex flex-wrap items-center gap-3">
+723:                         <label className="flex items-center gap-2 cursor-pointer font-bold text-sm bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-slate-700 dark:text-slate-350 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all select-none">
+724:                             <input
+725:                                 type="checkbox"
+726:                                 checked={!!student.liturgyAttendance?.includes(todayStr)}
+727:                                 onChange={(e) => {
+728:                                     if (isSubmittingLiturgy) return;
+729:                                     setIsSubmittingLiturgy(true);
+730:                                     markLiturgy(student.id, e.target.checked).finally(() => setIsSubmittingLiturgy(false));
+731:                                 }}
+732:                                 disabled={!isFriday}
+733:                                 className="w-5 h-5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
+734:                             />
+735:                             <span>حضور القداس ⛪</span>
+736:                         </label>
+737:                         <button 
+738:                             onClick={handleMark} 
+739:                             disabled={isAttendedToday || !isFriday || isSubmitting || !isPointsValid}
+740:                             className={`px-8 py-3 rounded-xl font-black text-base transition-all active:scale-95 \${
+741:                                 isAttendedToday 
+742:                                 ? 'bg-slate-150 dark:bg-slate-800 text-slate-400 dark:text-slate-555 cursor-not-allowed pointer-events-none' 
+743:                                 : (isFriday && !isSubmitting && isPointsValid ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-555 cursor-not-allowed')
+744:                             }`}
+745:                         >
+746:                             {isSubmitting ? 'جاري التسجيل...' : (isAttendedToday ? 'تم التحضير اليوم' : (isFriday ? 'تسجيل حضور' : 'متاح الجمعة فقط'))}
+747:                         </button>
+748:                     </div>
+749:                 )}
+750:             </div>
+751: 
+752:             {showAddShortcut && (
+753:                 <div className="mt-3 flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+754:                     <input 
+755:                         type="number" 
+756:                         value={newShortcut}
+757:                         onChange={e => setNewShortcut(e.target.value)}
+758:                         className="w-20 px-2 py-1 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
+759:                         placeholder="القيمة..."
+760:                     />
+761:                     <button onClick={addNewShortcut} className="bg-indigo-600 dark:bg-indigo-700 hover:bg-indigo-700 dark:hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold">إضافة اختصار</button>
+762:                     <button onClick={() => setShowAddShortcut(false)} className="text-slate-400 dark:text-slate-555 hover:text-slate-655 dark:hover:text-slate-400"><X size={16}/></button>
+763:                 </div>
+764:             )}
+765:         </div>
+766:     );
+767: }
+768: 
+769: 
+770: const STAGE_CLASS_MAP = {
+771: 
+772: 
+773: 
+774:     'ابتدائي': [
+775: 
+776: 
+777: 
+778:         'حضانة/ملائكة',
+779: 
+780: 
+781: 
+782:         'أولى ابتدائى',
+783: 
+784: 
+785: 
+786:         'ثانية ابتدائى',
+787: 
+788: 
+789: 
+790:         'ثالثة ابتدائى',
+791: 
+792: 
+793: 
+794:         'رابعة ابتدائى',
+795: 
+796: 
+797: 
+798:         'خامسة ابتدائى',
+799: 
+800: 
+801: 
+802:         'سادسة ابتدائي'
+803: 
+804: 
+805: 
+806:     ],
+807: 
+808: 
+809: 
+810:     'اعدادي': [
+811: 
+812: 
+813: 
+814:         'اولي اعدادي',
+815: 
+816: 
+817: 
+818:         'تانيه اعدادي',
+819: 
+820: 
+821: 
+822:         'تالته اعدادي'
+823: 
+824: 
+825: 
+826:     ],
+827: 
+828: 
+829: 
+830:     'ثانوي': [
+831: 
+832: 
+833: 
+834:         'اولي ثانوي',
+835: 
+836: 
+837: 
+838:         'تانيه ثانوي',
+839: 
+840: 
+841: 
+842:         'تالته ثانوي'
+843: 
+844: 
+845: 
+846:     ]
+847: 
+848: 
+849: 
+850: };
+851: 
+852: 
+853: 
+854: 
+855: 
+856: 
+857: 
+858: export function MasterAdminConsole({ studentsList = [], servantsList = [], attendanceRecords = [], visitationRecords = [] }) {
+859: 
+860: 
+861: 
+862:   const navigate = useNavigate();
+863: 
+864: 
+865: 
+866:   const { servant, isGeneralAdmin, authorizedClasses } = useAuth();
+867: 
+868: 
+869: 
+870: 
+871: 
+872: 
+873: 
+874:   const roleNorm = servant?.role ? normalizeArabic(servant.role) : '';
+875: 
+876: 
+877: 
+878:   const isStageServant = !isGeneralAdmin && roleNorm === 'امين مرحله';
+879: 
+880: 
+881: 
+882:   const isClassServant = !isGeneralAdmin && (roleNorm === 'امين فصل' || roleNorm === 'خادم فصل' || roleNorm === 'خادم') && !isStageServant;
+883: 
+884: 
+885: 
+886: 
+887: 
+888: 
+889: 
+890:   const myStage = useMemo(() => {
+891: 
+892: 
+893: 
+894:     const rawStage = servant ? (servant.assignedStage || servant.grade || '') : '';
+895: 
+896: 
+897: 
+898:     if (rawStage.includes('ابتدائي') || rawStage.includes('ابتدائى')) return 'ابتدائي';
+899: 
+900: 
+901: 
+902:     if (rawStage.includes('اعدادي') || rawStage.includes('اعدادى')) return 'اعدادي';
+903: 
+904: 
+905: 
+906:     if (rawStage.includes('ثانوي') || rawStage.includes('ثانوى')) return 'ثانوي';
+907: 
+908: 
+909: 
+910:     return '';
+911: 
+912: 
+913: 
+914:   }, [servant]);
+915: 
+916: 
+917: 
+918: 
+919: 
+920: 
+921: 
+922:   const [selectedStage, setSelectedStage] = useState(() => isStageServant || isClassServant ? myStage : (localStorage.getItem('master_console_stage') || ''));
+923: 
+924: 
+925: 
+926:   const [selectedClass, setSelectedClass] = useState(() => localStorage.getItem('master_console_class') || '');
+927: 
+928: 
+929: 
+930: 
+931: 
+932: 
+933: 
+934:   useEffect(() => {
+935: 
+936: 
+937: 
+938:     if ((isStageServant || isClassServant) && myStage) {
+939: 
+940: 
+941: 
+942:         setSelectedStage(myStage);
+943: 
+944: 
+945: 
+946:     }
+947: 
+948: 
+949: 
+950:   }, [isStageServant, isClassServant, myStage]);
+951: 
+952: 
+953: 
+954: 
+955: 
+956: 
+957: 
+958:   const classesJoin = (authorizedClasses || []).join(',');
+959: 
+960: 
+961: 
+962:   useEffect(() => {
+963: 
+964: 
+965: 
+966:     if (!isGeneralAdmin && authorizedClasses && authorizedClasses.length > 0) {
+967: 
+968: 
+969: 
+970:       if (!selectedClass || !authorizedClasses.includes(selectedClass)) {
+971: 
+972: 
+973: 
+974:         setSelectedClass(authorizedClasses[0]);
+975: 
+976: 
+977: 
+978:         localStorage.setItem('master_console_class', authorizedClasses[0]);
+979: 
+980: 
+981: 
+982:       }
+983: 
+984: 
+985: 
+986:     }
+987: 
+988: 
+989: 
+990:   }, [isGeneralAdmin, classesJoin, selectedClass]);
+991: 
+992: 
+993: 
+994: 
+995: 
+996: 
+997: 
+998:   const handleStageChange = (e) => {
+999: 
+1000: 
+1001: 
+1002:     if (isStageServant || isClassServant) return;
+1003: 
+1004: 
+1005: 

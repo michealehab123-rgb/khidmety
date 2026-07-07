@@ -1,0 +1,140 @@
+                    </button>
+                </div>
+            )}
+
+            {/* Bulk Print Container */}
+            <div className="bulk-print-container hidden">
+                {students.filter(s => selectedStudentsPrint.includes(s.id)).map(student => (
+                    <div key={student.id} className="bulk-card-page">
+                        <div 
+                            className="bulk-card-inner print-card-container aspect-[85/54] bg-gradient-to-b from-blue-900 via-slate-905 to-slate-950 text-white relative overflow-hidden flex flex-col justify-between"
+                            dir="rtl"
+                        >
+                            {/* Background Decorative Circles */}
+                            <div className="absolute -top-[12cqw] -right-[12cqw] w-[32cqw] h-[32cqw] bg-blue-600/15 rounded-full blur-[4.8cqw] pointer-events-none"></div>
+                            <div className="absolute -bottom-[12cqw] -left-[12cqw] w-[32cqw] h-[32cqw] bg-teal-500/15 rounded-full blur-[4.8cqw] pointer-events-none"></div>
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[38cqw] h-[38cqw] bg-amber-500/5 rounded-full blur-[6cqw] pointer-events-none"></div>
+
+                            {/* Header Section */}
+                            <div className="text-center z-10 border-b border-white/10 pb-[2.5%] mb-[1%]">
+                                <h2 className="text-[3.2cqw] font-black tracking-wide bg-gradient-to-l from-amber-400 to-yellow-300 bg-clip-text text-transparent">
+                                    كنيسة السيدة العذراء مريم
+                                </h2>
+                                <p className="text-[2cqw] font-bold text-slate-400 uppercase tracking-widest mt-[0.5%]">
+                                    خدمة مدارس الأحد
+                                </p>
+                            </div>
+
+                            {/* Body Section (Horizontal Split) */}
+                            <div className="flex flex-1 items-center justify-between my-[2%] z-10 gap-[4.8cqw]">
+                                {/* Right side visually: Avatar, Name & Code */}
+                                <div className="flex flex-col items-center justify-center text-center w-1/2 space-y-[2.4cqw]">
+                                    {/* Avatar Circle */}
+                                    <div className="relative">
+                                        <div className="w-[16cqw] h-[16cqw] bg-slate-800 rounded-full flex items-center justify-center border-[0.4cqw] border-amber-500/40 shadow-inner overflow-hidden">
+                                            {student.photoUrl ? (
+                                                <img 
+                                                    src={student.photoUrl} 
+                                                    alt={student.name} 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <User className="w-[8cqw] h-[8cqw] text-amber-500" />
+                                            )}
+                                        </div>
+                                        <div className="absolute -bottom-[0.5cqw] -right-[0.5cqw] bg-amber-500 text-slate-950 p-[1cqw] rounded-full shadow-md flex items-center justify-center">
+                                            <Award className="w-[3cqw] h-[3cqw] stroke-[3]" />
+                                        </div>
+                                    </div>
+
+                                    {/* Student Name and ID */}
+                                    <div className="space-y-[0.8cqw] w-full">
+                                        <h3 className="text-[3.6cqw] font-black tracking-tight text-white drop-shadow-md truncate max-w-full px-[1.5cqw]">
+                                            {student.name}
+                                        </h3>
+                                        
+                                        <div className="inline-flex items-center gap-[1.2cqw] bg-slate-800/80 px-[2cqw] py-[0.4cqw] rounded-full border border-white/5">
+                                            <span className="text-[1.8cqw] font-bold text-slate-400">كود المخدوم:</span>
+                                            <span className="text-[2.4cqw] font-black text-amber-400 font-mono">{student.code}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Left side visually: Badges & QR Code */}
+                                <div className="flex flex-col items-center gap-[2cqw] w-1/2">
+                                    {/* Badges row */}
+                                    <div className="flex gap-[1.6cqw] w-full justify-center">
+                                        <div className="bg-white/5 rounded-[1.6cqw] p-[1.5cqw] border border-white/5 text-center flex-1 min-w-0">
+                                            <span className="block text-[1.6cqw] font-bold text-slate-400">الفصل</span>
+                                            <span className="text-[2.2cqw] font-black text-slate-200 block truncate">{student.assignedClass || 'غير محدد'}</span>
+                                        </div>
+                                        <div className="bg-white/5 rounded-[1.6cqw] p-[1.5cqw] border border-white/5 text-center flex-1 min-w-0">
+                                            <span className="block text-[1.6cqw] font-bold text-slate-400">المرحلة</span>
+                                            <span className="text-[2.2cqw] font-black text-slate-200 block truncate">{student.schoolGrade || 'غير محدد'}</span>
+                                        </div>
+                                    </div>
+                                    {/* QR Code */}
+                                    <div className="bg-white p-[2cqw] rounded-[2cqw] shadow-lg border border-amber-500/20 flex items-center justify-center">
+                                        <div className="w-[19cqw] h-[19cqw] flex items-center justify-center">
+                                            <QRCodeSVG 
+                                                value={student.id} 
+                                                style={{ width: '100%', height: '100%' }}
+                                                level="H"
+                                                includeMargin={false}
+                                                fgColor="#0f172a"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Footer Section */}
+                            <div className="text-center z-10 border-t border-white/10 pt-[1.6cqw] flex justify-between items-center text-[1.8cqw] font-semibold text-slate-400">
+                                <span>كارنيه التحضير الذكي للأنشطة</span>
+                                <span className="text-amber-500/80 font-black">2026 / 2027</span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Bulk Print Styles */}
+            {isPrintingBulk && (
+                <style>{`
+                    @media print {
+                        @page {
+                            size: 8.5cm 5.4cm;
+                            margin: 0;
+                        }
+
+                        /* For bulk printing, neutralize all intermediate layouts */
+                        body.printing-bulk #root, 
+                        body.printing-bulk #root *:not(.bulk-print-container):not(.bulk-print-container *) {
+                            position: static !important;
+                            transform: none !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            height: 0 !important;
+                            width: 0 !important;
+                            overflow: visible !important;
+                            box-shadow: none !important;
+                            filter: none !important;
+                            backdrop-filter: none !important;
+                        }
+                        
+                        body.printing-bulk {
+                            width: 8.5cm !important;
+                            height: 5.4cm !important;
+                            overflow: hidden !important;
+                            background-color: transparent !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }
+                        
+                        body.printing-bulk * {
+                            visibility: hidden !important;
+                        }
+                        
+                        body.printing-bulk .bulk-print-container,

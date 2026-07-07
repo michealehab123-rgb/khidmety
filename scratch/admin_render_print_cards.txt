@@ -1,0 +1,280 @@
+const renderPrintCardsTab = () => {
+        return (
+            <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+                    <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-grow max-w-5xl">
+                        <select
+                            value={selectedStagePrint}
+                            onChange={e => { setSelectedStagePrint(e.target.value); setSelectedClassPrint('الكل'); setSelectedStudentsPrint([]); }}
+                            disabled={isStageServant}
+                            className="w-full sm:w-44 p-3 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+                        >
+                            <option value="الكل">كل المراحل</option>
+                            {Object.keys(STAGE_CLASS_MAP).map(stage => (
+                                <option key={stage} value={stage}>{stage}</option>
+                            ))}
+                        </select>
+
+                        <select
+                            value={selectedClassPrint}
+                            onChange={e => { setSelectedClassPrint(e.target.value); setSelectedStudentsPrint([]); }}
+                            className="w-full sm:w-48 p-3 bg-white dark:bg-[#0f172a] text-slate-850 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors duration-300"
+                            disabled={selectedStagePrint === 'الكل'}
+                        >
+                            <option value="الكل">{selectedStagePrint === 'الكل' ? 'كل الفصول' : 'كل فصول المرحلة'}</option>
+                            {(STAGE_CLASS_MAP[selectedStagePrint] || []).map(cls => (
+                                <option key={cls} value={cls}>{cls}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-3 whitespace-nowrap">
+                        <button
+                            type="button"
+                            onClick={handleBulkPrint}
+                            disabled={selectedStudentsPrint.length === 0}
+                            className={`px-5 py-3 font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 border-none cursor-pointer text-white ${
+                                selectedStudentsPrint.length > 0
+                                    ? 'bg-blue-600 hover:bg-blue-700 hover:shadow-xl active:scale-95'
+                                    : 'bg-slate-300 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed shadow-none'
+                            }`}
+                        >
+                            <Printer size={18} />
+                            <span>طباعة الكارنيهات المحددة ({selectedStudentsPrint.length})</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
+                    <table className="w-full text-right border-collapse">
+                        <thead>
+                            <tr className="bg-slate-100 dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+                                <th className="p-3 w-12 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={isAllPrintSelected}
+                                        onChange={handleToggleSelectAllPrint}
+                                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                                    />
+                                </th>
+                                <th className="p-3">كود المخدوم</th>
+                                <th className="p-3">اسم المخدوم</th>
+                                <th className="p-3">المرحلة</th>
+                                <th className="p-3">الفصل</th>
+                                <th className="p-3 text-center">حالة الصورة الشخصية</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortedStudentsPrint.map(student => {
+                                const isSelected = selectedStudentsPrint.includes(student.id);
+                                return (
+                                    <tr key={student.id} className="border-b border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                        <td className="p-4 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => handleToggleSelectStudentPrint(student.id)}
+                                                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
+                                            />
+                                        </td>
+                                        <td className="p-4 font-mono font-bold text-slate-500 dark:text-slate-400">#{student.code}</td>
+                                        <td className="p-4 font-bold">
+                                            <Link to={`/admin/student/${student.id}`} className="text-blue-500 hover:underline hover:text-blue-600 transition-colors">{student.name}</Link>
+                                        </td>
+                                        <td className="p-4 font-semibold text-slate-700 dark:text-slate-300">{student.schoolGrade || '—'}</td>
+                                        <td className="p-4 font-semibold text-slate-700 dark:text-slate-300">{student.assignedClass || '—'}</td>
+                                        <td className="p-4 text-center">
+                                            {student.photoUrl ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-455 border border-emerald-200 dark:border-emerald-800">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                    لديه صورة شخصية ✅
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                    بدون صورة 📷
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {sortedStudentsPrint.length === 0 && (
+                                <tr>
+                                    <td colSpan="6" className="p-8 text-center text-slate-450 dark:text-slate-500 font-bold">لا توجد نتائج مطابقة للبحث في نطاق مرحلتك المصرحة</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+                <p className="text-lg font-medium text-gray-600 dark:text-slate-400">جاري التحميل...</p>
+            </div>
+        );
+    }
+
+    if (!user) return <Navigate to="/admin/login" replace />;
+
+    return (
+         <div className="max-w-6xl mx-auto px-4 py-8 min-h-[75vh]" dir="rtl">
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white transition-colors duration-300">
+                            {activeTab === 'master_console' ? (isStageServant ? `لوحة تحكم مرحلة ${myStage}` : 'لوحة التحكم المركزية') : (activeTab === 'bonus' ? 'بونص المخدومين' : 'إدارة المخدومين')}
+                        </h1>
+                        {isOnline ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                متصل 🟢
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-sm animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                أوفلاين (سيتم المزامنة لاحقاً) 🟡
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 transition-colors duration-300">
+                        {activeTab === 'master_console' ? 'متابعة الإحصائيات الفورية والوصول السريع للمرحلة تبعا لصلاحيتك' : (activeTab === 'bonus' ? 'إضافة نقاط بونص ومكافآت للمخدومين' : 'إدارة مخدومين مدرسة الأحد')}
+                    </p>
+                </div>
+                {activeTab === 'attendance' && (
+                    <Link 
+                        to="/admin/scanner"
+                        className="flex items-center gap-2 bg-gradient-to-l from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white px-5 py-3 rounded-2xl font-black text-sm shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer shrink-0"
+                    >
+                        <Camera size={18} />
+                        <span>تحضير سريع بالـ QR 📸</span>
+                    </Link>
+                )}
+            </header>
+
+            {activeTab !== 'master_console' && (
+                <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl mb-8 gap-1 w-full max-w-xl border border-slate-200/50 dark:border-slate-800">
+                    <button
+                        onClick={() => setSearchParams({ tab: 'attendance' })}
+                        className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'attendance' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        تسجيل الحضور
+                    </button>
+                    <button
+                        onClick={() => setSearchParams({ tab: 'bonus' })}
+                        className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'bonus' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        بونص
+                    </button>
+                    <button
+                        onClick={() => setSearchParams({ tab: 'directory' })}
+                        className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'directory' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        كشوف المخدومين
+                    </button>
+                    <button
+                        onClick={() => setSearchParams({ tab: 'print_cards' })}
+                        className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'print_cards' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                    >
+                        طباعة الكارنيهات 💳
+                    </button>
+                </div>
+            )}
+
+            {activeTab === 'master_console' && (isGeneralAdmin || isStageServant) && (
+                <MasterAdminConsole 
+                    studentsList={mappedStudentsList} 
+                    servantsList={servants} 
+                    attendanceRecords={attendanceRecords} 
+                    visitationRecords={visitationRecords} 
+                />
+            )}
+
+            {activeTab === 'attendance' && (
+                <>
+                    <div className="relative mb-8">
+                        <input
+                            type="text"
+                            placeholder="بحث بالاسم أو الكود..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full p-4 pr-12 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
+                        />
+                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-505" />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3 mb-8 items-center bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors duration-300">
+                        <span className="font-bold text-slate-655 dark:text-slate-400">تصفية حسب:</span>
+                        <div className="flex gap-3 flex-wrap flex-1">
+                            <select
+                                value={selectedStageTab1}
+                                onChange={e => { setSelectedStageTab1(e.target.value); setSelectedClassTab1('الكل'); }}
+                                disabled={isStageServant}
+                                className="w-full sm:w-44 p-3 bg-slate-50 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+                            >
+                                <option value="الكل">كل المراحل</option>
+                                {Object.keys(STAGE_CLASS_MAP).map(stage => (
+                                    <option key={stage} value={stage}>{stage}</option>
+                                ))}
+                            </select>
+
+                            <select
+                                value={selectedClassTab1}
+                                onChange={e => setSelectedClassTab1(e.target.value)}
+                                className="w-full sm:w-48 p-3 bg-slate-50 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors duration-300"
+                                disabled={selectedStageTab1 === 'الكل'}
+                            >
+                                <option value="الكل">{selectedStageTab1 === 'الكل' ? 'كل الفصول' : 'كل فصول المرحلة'}</option>
+                                {(STAGE_CLASS_MAP[selectedStageTab1] || []).map(cls => (
+                                    <option key={cls} value={cls}>{cls}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {studentsLoading ? (
+                        <div className="py-20 text-center space-y-4">
+                            <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+                            <p className="text-xl font-bold text-slate-400 dark:text-slate-505">جاري تحميل قائمة المخدومين...</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {filteredStudentsTab1.map(student => {
+                                const safeClassId = getSafeClassId(student.assignedClass);
+                                const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+                                return (
+                                    <StudentRow 
+                                        key={student.id} 
+                                        student={student} 
+                                        addPoints={addPoints} 
+                                        markAttendance={markAttendance} 
+                                        deleteStudent={handleDeleteStudent}
+                                        openAttendanceModal={setAttendanceModalStudentId}
+                                        resetPassword={resetPassword}
+                                        shortcuts={getShortcutsForClass(student.assignedClass)}
+                                        addShortcut={(val) => addShortcutForClass(student.assignedClass, val)}
+                                        removeShortcut={(val) => removeShortcutForClass(student.assignedClass, val)}
+                                        consecutiveGiftEnabled={consecutiveGiftEnabled}
+                                        claimGift={claimGift}
+                                        isBonus={false}
+                                        storeVisible={isStoreVisibleForStudent(student, storeConfigs)}
+                                    />
+                                );
+                            })}
+                            {filteredStudentsTab1.length === 0 && (
+                                <div className="py-20 text-center bg-white dark:bg-[#1e293b] rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 transition-colors duration-300">
+                                    <Search size={64} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
+                                    <p className="text-xl font-bold text-slate-400 dark:text-slate-500">لا يوجد مخدومين بهذا الاسم أو الكود في نطاقك</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {activeTab === 'bonus' && (
+                <>

@@ -1,0 +1,135 @@
+1931:                                             : (
+1932:                                                 <>
+1933:                                                     <option value="">اختر الفصل</option>
+1934:                                                     {(isClassServant || isStageServant) ? (
+1935:                                                         myClasses.map(cls => (
+1936:                                                             <option key={cls} value={cls}>{cls}</option>
+1937:                                                         ))
+1938:                                                     ) : (
+1939:                                                         (STAGE_CLASS_MAP[newStudent.schoolGrade] || []).map(cls => (
+1940:                                                             <option key={cls} value={cls}>{cls}</option>
+1941:                                                         ))
+1942:                                                     )}
+1943:                                                 </>
+1944:                                             )
+1945:                                         }
+1946:                                     </select>
+1947:                                 </div>
+1948:                                 <div className="md:col-span-2 space-y-4">
+1949:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400">أرقام التليفون</label>
+1950:                                     {newStudent.phones.map((phone, idx) => (
+1951:                                         <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-200">
+1952:                                             <input className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={phone} onChange={e => {
+1953:                                                 const newPhones = [...newStudent.phones];
+1954:                                                 newPhones[idx] = e.target.value;
+1955:                                                 setNewStudent({ ...newStudent, phones: newPhones });
+1956:                                             }} placeholder="012XXXXXXXX" />
+1957:                                             {idx === newStudent.phones.length - 1 ? (
+1958:                                                 <button type="button" onClick={() => setNewStudent({ ...newStudent, phones: [...newStudent.phones, ''] })} className="p-3 bg-blue-100 dark:bg-blue-955/40 text-blue-600 dark:text-blue-400 rounded-lg"><Plus size={20} /></button>
+1959:                                             ) : (
+1960:                                                 <button type="button" onClick={() => {
+1961:                                                     const newPhones = newStudent.phones.filter((_, i) => i !== idx);
+1962:                                                     setNewStudent({ ...newStudent, phones: newPhones });
+1963:                                                 }} className="p-3 bg-rose-100 dark:bg-rose-955/40 text-rose-600 dark:text-rose-400 rounded-lg"><X size={20} /></button>
+1964:                                             )}
+1965:                                         </div>
+1966:                                     ))}
+1967:                                 </div>
+1968: 
+1969:                                 <div className="md:col-span-2 space-y-4">
+1970:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400">العناوين</label>
+1971:                                     {newStudent.addresses.map((address, idx) => (
+1972:                                         <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-200">
+1973:                                             <input className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={address} onChange={e => {
+1974:                                                 const newAddresses = [...newStudent.addresses];
+1975:                                                 newAddresses[idx] = e.target.value;
+1976:                                                 setNewStudent({ ...newStudent, addresses: newAddresses });
+1977:                                             }} placeholder="المنطقة، الشارع، رقم الشقة..." />
+1978:                                             {idx === newStudent.addresses.length - 1 ? (
+1979:                                                 <button type="button" onClick={() => setNewStudent({ ...newStudent, addresses: [...newStudent.addresses, ''] })} className="p-3 bg-blue-100 dark:bg-blue-955/40 text-blue-600 dark:text-blue-400 rounded-lg"><Plus size={20} /></button>
+1980:                                             ) : (
+1981:                                                 <button type="button" onClick={() => {
+1982:                                                     const newAddresses = newStudent.addresses.filter((_, i) => i !== idx);
+1983:                                                     setNewStudent({ ...newStudent, addresses: newAddresses });
+1984:                                                 }} className="p-3 bg-rose-100 dark:bg-rose-955/40 text-rose-600 dark:text-rose-400 rounded-lg"><X size={20} /></button>
+1985:                                             )}
+1986:                                         </div>
+1987:                                     ))}
+1988:                                 </div>
+1989: 
+1990:                                 <div>
+1991:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">أب الاعتراف</label>
+1992:                                     <input className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={newStudent.fatherOfConfession} onChange={e => setNewStudent({ ...newStudent, fatherOfConfession: e.target.value })} placeholder="قدس أبونا..." />
+1993:                                 </div>
+1994:                                 <div>
+1995:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">تاريخ الميلاد</label>
+1996:                                     <input type="date" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 text-right transition-colors duration-300" value={newStudent.birthDate} onChange={e => setNewStudent({ ...newStudent, birthDate: e.target.value })} />
+1997:                                 </div>
+1998:                                 <button type="submit" disabled={isAdding} className="md:col-span-2 bg-blue-600 dark:bg-blue-700 dark:hover:bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 transition-all mt-2">
+1999:                                     {isAdding ? 'جاري الحفظ...' : 'حفظ البيانات'}
+2000:                                 </button>
+2001:                             </div>
+2002:                         </form>
+2003:                     )}
+2004: 
+2005:                     <div className="overflow-x-auto bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300">
+2006:                         <table className="w-full text-right border-collapse">
+2007:                             <thead>
+2008:                                 <tr className="bg-slate-100 dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+2009:                                     <th className="p-3">كود المخدوم</th>
+2010:                                     <th className="p-3">اسم المخدوم</th>
+2011:                                     <th className="p-3">المرحلة</th>
+2012:                                     <th className="p-3">الفصل</th>
+2013:                                     <th className="p-3">أرقام التليفون</th>
+2014:                                     <th className="p-3">العناوين</th>
+2015:                                     <th className="p-3">الصفات / الملاحظات</th>
+2016:                                     <th className="p-3 text-center">حضور المخدوم</th>
+2017:                                 </tr>
+2018:                             </thead>
+2019:                             <tbody>
+2020:                                 {filteredStudentsTab2.map(student => (
+2021:                                     <tr key={student.id} className="border-b border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+2022:                                         <td className="p-4 font-mono font-bold text-slate-500 dark:text-slate-400">#{student.code}</td>
+2023:                                         <td className="p-4 font-bold">
+2024:                                             <Link to={`/servant/student/${student.id}`} className="text-blue-500 hover:underline hover:text-blue-600 transition-colors">{student.name}</Link>
+2025:                                         </td>
+2026:                                         <td className="p-4 font-semibold text-slate-700 dark:text-slate-300">{student.schoolGrade || '—'}</td>
+2027:                                         <td className="p-4 font-semibold text-slate-700 dark:text-slate-300">{student.assignedClass || '—'}</td>
+2028:                                         <td className="p-4 text-sm font-medium text-slate-600 dark:text-slate-400">{student.phones && student.phones.filter(Boolean).length > 0 ? student.phones.filter(Boolean).join('، ') : '—'}</td>
+2029:                                         <td className="p-4 text-sm text-slate-600 dark:text-slate-400">{student.addresses && student.addresses.filter(Boolean).length > 0 ? student.addresses.filter(Boolean).join('، ') : '—'}</td>
+2030:                                         <td className="p-4 text-sm text-slate-600 dark:text-slate-400">
+2031:                                             <div className="flex flex-col gap-1">
+2032:                                                 <div><span className="font-bold text-amber-600 dark:text-amber-400">الصفات:</span> {student.points || 0}</div>
+2033:                                                 {student.notes && <div className="text-slate-400 dark:text-slate-505 text-xs">{student.notes}</div>}
+2034:                                             </div>
+2035:                                         </td>
+2036:                                         <td className="p-4 text-center font-bold text-emerald-600 dark:text-emerald-400">{student.attendance ? student.attendance.length : 0} جمعة</td>
+2037:                                     </tr>
+2038:                                 ))}
+2039:                                 {filteredStudentsTab2.length === 0 && (
+2040:                                     <tr>
+2041:                                         <td colSpan="8" className="p-8 text-center text-slate-450 dark:text-slate-500 font-bold">لا توجد نتائج مطابقة للبحث في نطاق مرحلتك المعزولة</td>
+2042:                                     </tr>
+2043:                                 )}
+2044:                             </tbody>
+2045:                         </table>
+2046:                     </div>
+2047:                 </div>
+2048:             )}
+2049: 
+2050:             {activeTab === 'print_cards' && renderPrintCardsTab()}
+2051: 
+2052:             {/* Attendance Modal */}
+2053:             {attendanceModalStudentId && (
+2054:                 <div className="fixed inset-0 z-[200] bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+2055:                      <div className="bg-white dark:bg-[#1e293b] rounded-3xl w-full max-w-md shadow-2xl p-6 md:p-8 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 transition-colors duration-300">
+2056:                         <div className="flex justify-between items-start mb-6">
+2057:                             <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100">سجل الحضور</h3>
+2058:                             <button onClick={() => setAttendanceModalStudentId(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-xl transition-colors text-slate-400 dark:text-slate-555"><X size={28} /></button>
+2059:                         </div>
+2060:                         {(() => {
+2061:                             const s = students.find(x => x.id === attendanceModalStudentId);
+2062:                             if (!s || !s.attendance || s.attendance.length === 0) return (
+2063:                                 <div className="py-10 text-center space-y-3">
+2064:                                     <CalendarDays size={48} className="mx-auto text-slate-200 dark:text-slate-700" />
+2065:                                     <p className="text-slate-400 dark:text-slate-555 font-bold">لا يوجد سجل حضور حالياً</p>

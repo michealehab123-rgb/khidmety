@@ -1,0 +1,211 @@
+2096:                      </div>
+2097:                 </div>
+2098:             )}
+2099: 
+2100:             {/* Toast Alerts */}
+2101:             {toast.show && (
+2102:                 <div className={`fixed bottom-5 left-5 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border transition-all duration-300 animate-in fade-in slide-in-from-bottom-5 ${
+2103:                     toast.type === 'error' 
+2104:                     ? 'bg-rose-50 dark:bg-rose-955/90 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200' 
+2105:                     : toast.type === 'warning'
+2106:                     ? 'bg-amber-50 dark:bg-amber-955/90 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'
+2107:                     : 'bg-emerald-50 dark:bg-emerald-950/90 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+2108:                 }`}>
+2109:                     {toast.type === 'error' ? (
+2110:                         <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+2111:                     ) : toast.type === 'warning' ? (
+2112:                         <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+2113:                     ) : (
+2114:                         <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+2115:                     )}
+2116:                     <span className="font-bold text-sm leading-relaxed">{toast.message}</span>
+2117:                     <button onClick={() => setToast(prev => ({ ...prev, show: false }))} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-2">
+2118:                         <X size={16} />
+2119:                     </button>
+2120:                 </div>
+2121:             )}
+2122: 
+2123:             {/* Bulk Print Container */}
+2124:             <div className="bulk-print-container hidden">
+2125:                 {students.filter(s => selectedStudentsPrint.includes(s.id)).map(student => (
+2126:                     <div key={student.id} className="bulk-card-page">
+2127:                         <div className="bulk-card-inner">
+2128:                             {/* Decorative background vectors */}
+2129:                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(30,58,138,0.3),transparent_70%)] pointer-events-none z-0" />
+2130:                             <div className="absolute -right-[10%] -top-[10%] w-[35cqw] h-[35cqw] bg-amber-500/5 rounded-full blur-[3cqw] pointer-events-none z-0" />
+2131:                             <div className="absolute -left-[10%] -bottom-[10%] w-[45cqw] h-[45cqw] bg-blue-500/5 rounded-full blur-[4cqw] pointer-events-none z-0" />
+2132:                             
+2133:                             {/* Card Body */}
+2134:                             <div className="flex justify-between items-stretch flex-1 z-10 gap-[3cqw] min-h-0">
+2135:                                 {/* Right side visually: Photo & Personal info */}
+2136:                                 <div className="flex gap-[3cqw] items-center w-1/2 min-w-0">
+2137:                                     {/* Student Photo */}
+2138:                                     <div className="w-[18cqw] h-[22cqw] rounded-[2cqw] border-2 border-amber-500/30 overflow-hidden bg-slate-900 shadow-md shrink-0 flex items-center justify-center relative">
+2139:                                         {student.photoUrl ? (
+2140:                                             <img src={student.photoUrl} alt={student.name} className="w-full h-full object-cover" />
+2141:                                         ) : (
+2142:                                             <div className="flex flex-col items-center justify-center text-slate-500 gap-[0.5cqw]">
+2143:                                                 <User size={32} className="text-slate-655 opacity-40" />
+2144:                                             </div>
+2145:                                         )}
+2146:                                     </div>
+2147:                                     {/* Info text */}
+2148:                                     <div className="flex flex-col justify-center min-w-0 flex-1">
+2149:                                         <h2 className="text-[3.2cqw] font-black text-amber-400 truncate mb-[0.8cqw] select-none tracking-wide text-right leading-none">
+2150:                                             {student.name.split(' ').slice(0, 3).join(' ')}
+2151:                                         </h2>
+2152:                                         <div className="space-y-[0.8cqw] text-right">
+2153:                                             <div className="flex items-center gap-[1.5cqw] text-[1.9cqw] text-slate-300 font-bold justify-start">
+2154:                                                 <span className="text-slate-400 select-none">كود:</span>
+2155:                                                 <span className="font-mono text-amber-500/90 truncate">#{student.code}</span>
+2156:                                             </div>
+2157:                                             <div className="flex items-center gap-[1.5cqw] text-[1.9cqw] text-slate-300 font-bold justify-start">
+2158:                                                 <span className="text-slate-400 select-none">الرقم:</span>
+2159:                                                 <span className="truncate">{student.phones && student.phones[0] ? student.phones[0] : '—'}</span>
+2160:                                             </div>
+2161:                                         </div>
+2162:                                     </div>
+2163:                                 </div>
+2164: 
+2165:                                 {/* Left side visually: Badges & QR Code */}
+2166:                                 <div className="flex flex-col items-center gap-[2cqw] w-1/2">
+2167:                                     {/* Badges row */}
+2168:                                     <div className="flex gap-[1.6cqw] w-full justify-center">
+2169:                                         <div className="bg-white/5 rounded-[1.6cqw] p-[1.5cqw] border border-white/5 text-center flex-1 min-w-0">
+2170:                                             <span className="block text-[1.6cqw] font-bold text-slate-400">الفصل</span>
+2171:                                             <span className="text-[2.2cqw] font-black text-slate-200 block truncate">{student.assignedClass || 'غير محدد'}</span>
+2172:                                         </div>
+2173:                                         <div className="bg-white/5 rounded-[1.6cqw] p-[1.5cqw] border border-white/5 text-center flex-1 min-w-0">
+2174:                                             <span className="block text-[1.6cqw] font-bold text-slate-400">المرحلة</span>
+2175:                                             <span className="text-[2.2cqw] font-black text-slate-200 block truncate">{student.schoolGrade || 'غير محدد'}</span>
+2176:                                         </div>
+2177:                                     </div>
+2178:                                     {/* QR Code */}
+2179:                                     <div className="bg-white p-[2cqw] rounded-[2cqw] shadow-lg border border-amber-500/20 flex items-center justify-center">
+2180:                                         <div className="w-[19cqw] h-[19cqw] flex items-center justify-center">
+2181:                                             <QRCodeSVG 
+2182:                                                 value={student.id} 
+2183:                                                 style={{ width: '100%', height: '100%' }}
+2184:                                                 level="H"
+2185:                                                 includeMargin={false}
+2186:                                                 fgColor="#0f172a"
+2187:                                             />
+2188:                                         </div>
+2189:                                     </div>
+2190:                                 </div>
+2191:                             </div>
+2192: 
+2193:                             {/* Footer Section */}
+2194:                             <div className="text-center z-10 border-t border-white/10 pt-[1.6cqw] flex justify-between items-center text-[1.8cqw] font-semibold text-slate-400">
+2195:                                 <span>كارنيه التحضير الذكي للأنشطة</span>
+2196:                                 <span className="text-amber-500/80 font-black">2026 / 2027</span>
+2197:                             </div>
+2198:                         </div>
+2199:                     </div>
+2200:                 ))}
+2201:             </div>
+2202: 
+2203:             {/* Bulk Print Styles */}
+2204:             {isPrintingBulk && (
+2205:                 <style>{`
+2206:                     @media print {
+2207:                         @page {
+2208:                             size: 8.5cm 5.4cm;
+2209:                             margin: 0;
+2210:                         }
+2211: 
+2212:                         /* For bulk printing, neutralize all intermediate layouts */
+2213:                         body.printing-bulk #root, 
+2214:                         body.printing-bulk #root *:not(.bulk-print-container):not(.bulk-print-container *) {
+2215:                             position: static !important;
+2216:                             transform: none !important;
+2217:                             margin: 0 !important;
+2218:                             padding: 0 !important;
+2219:                             height: 0 !important;
+2220:                             width: 0 !important;
+2221:                             overflow: visible !important;
+2222:                             box-shadow: none !important;
+2223:                             filter: none !important;
+2224:                             backdrop-filter: none !important;
+2225:                         }
+2226:                         
+2227:                         body.printing-bulk {
+2228:                             width: 8.5cm !important;
+2229:                             height: 5.4cm !important;
+2230:                             overflow: hidden !important;
+2231:                             background-color: transparent !important;
+2232:                             -webkit-print-color-adjust: exact !important;
+2233:                             print-color-adjust: exact !important;
+2234:                             margin: 0 !important;
+2235:                             padding: 0 !important;
+2236:                         }
+2237:                         
+2238:                         body.printing-bulk * {
+2239:                             visibility: hidden !important;
+2240:                         }
+2241:                         
+2242:                         body.printing-bulk .bulk-print-container,
+2243:                         body.printing-bulk .bulk-print-container * {
+2244:                             visibility: visible !important;
+2245:                         }
+2246:                         
+2247:                         body.printing-bulk .bulk-print-container {
+2248:                             display: block !important;
+2249:                             position: absolute !important;
+2250:                             left: 0 !important;
+2251:                             top: 0 !important;
+2252:                             width: 8.5cm !important;
+2253:                             height: auto !important;
+2254:                         }
+2255:                         
+2256:                         body.printing-bulk .bulk-card-page {
+2257:                             display: block !important;
+2258:                             width: 8.5cm !important;
+2259:                             height: 5.4cm !important;
+2260:                             page-break-after: always !important;
+2261:                             break-after: page !important;
+2262:                             position: relative !important;
+2263:                             box-sizing: border-box !important;
+2264:                             margin: 0 !important;
+2265:                             padding: 0 !important;
+2266:                         }
+2267:                         
+2268:                         body.printing-bulk .bulk-card-inner {
+2269:                             width: 8.5cm !important;
+2270:                             height: 5.4cm !important;
+2271:                             border-radius: 0.2cm !important;
+2272:                             border: 0.03cm solid rgba(245, 158, 11, 0.3) !important;
+2273:                             box-sizing: border-box !important;
+2274:                             background: linear-gradient(to bottom, #1e3a8a, #0f172a, #020617) !important;
+2275:                             -webkit-print-color-adjust: exact !important;
+2276:                             print-color-adjust: exact !important;
+2277:                             position: relative !important;
+2278:                             overflow: hidden !important;
+2279:                             padding: 4% !important;
+2280:                             display: flex !important;
+2281:                             flex-direction: column !important;
+2282:                             justify-content: space-between !important;
+2283:                             container-type: inline-size;
+2284:                             container-name: card;
+2285:                         }
+2286:                         
+2287:                         /* Fix transparent clip text gradient bug in printing */
+2288:                         body.printing-bulk .bulk-card-inner h2 {
+2289:                             background: none !important;
+2290:                             -webkit-background-clip: unset !important;
+2291:                             background-clip: unset !important;
+2292:                             -webkit-text-fill-color: #fbbf24 !important;
+2293:                             color: #fbbf24 !important;
+2294:                         }
+2295:                     }
+2296:                 `}</style>
+2297:             )}
+2298:             <style>{`
+2299:                 .bulk-print-container {
+2300:                     display: none;
+2301:                 }
+2302:             `}</style>
+2303:         </div>
+2304:     );
+2305: 
+2306: }

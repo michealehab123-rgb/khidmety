@@ -1,0 +1,20 @@
+2224:                         
+2225:                         /* Fix transparent clip text gradient bug in printing */
+2226:                         body.printing-bulk .bulk-card-inner h2 {
+2227:                             background: none !important;
+2228:                             -webkit-background-clip: unset !important;
+2229:                             background-clip: unset !important;
+2230:                             -webkit-text-fill-color: #fbbf24 !important;
+2231:                             color: #fbbf24 !important;
+2232:                         }
+2233:                     }
+2234:                 `}</style>
+2235:             )}
+2236:             <style>{`
+2237:                 .bulk-print-container {
+2238:                     display: none;
+2239:                 }
+2240:             `}</style>
+2241:         </div>
+2242:     );
+2243: }

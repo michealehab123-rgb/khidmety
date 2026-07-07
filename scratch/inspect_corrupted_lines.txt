@@ -1,0 +1,120 @@
+1741:                             )}
+1742:                         </div>
+1743:                     )}
+1744:                 </>
+1745:             )}
+1746: 
+1747:             {activeTab === 'bonus' && (
+1748:                 <>
+1749:                     <div className="relative mb-8">
+1750:                         <input
+1751:                             type="text"
+1752:                             placeholder="بحث بالاسم أو الكود..."
+1753:                             value={searchTerm}
+1754:                             onChange={(e) => setSearchTerm(e.target.value)}
+1755:                             className="w-full p-4 pr-12 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
+1756:                         />
+1757:                         <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-555" />
+1758:                     </div>
+1759: 
+1760:                     <div className="flex flex-col sm:flex-row gap-3 mb-8 items-center bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors duration-300">
+1761:                         <span className="font-bold text-slate-650 dark:text-slate-400">تصفية حسب:</span>
+1762:                         <div className="flex gap-3 flex-wrap flex-1">
+1763:                             <select
+1764:                                 value={selectedStageTab1}
+1765:                                 onChange={e => { setSelectedStageTab1(e.target.value); setSelectedClassTab1('الكل'); }}
+1766:                                 className="w-full sm:w-44 p-3 bg-slate-50 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+1767:                                 disabled={(isStageServant || isClassServant) && !!myStage}
+1768:                             >
+1769:                                 <option value="الكل">كل المراحل</option>
+1770:                                 {Object.keys(STAGE_CLASS_MAP).map(stage => (
+1771:                                     <option key={stage} value={stage}>{stage}</option>
+1772:                                 ))}
+1773:                             </select>
+1774: 
+1775:                             <select
+1776:                                 value={selectedClassTab1}
+1777:                                 onChange={e => setSelectedClassTab1(e.target.value)}
+1778:                                 className="w-full sm:w-48 p-3 bg-slate-50 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300"
+1779:                                 disabled={selectedStageTab1 === 'الكل' || ((isClassServant || isStageServant) && myClasses.length <= 1)}
+1780:                             >
+1781:                                 {myClasses.length > 1 && <option value="الكل">كل الفصول</option>}
+1782:                                 {myClasses.map(cls => (
+1783:                                     <option key={cls} value={cls}>{cls}</option>
+1784:                                 ))}
+1785:                             </select>
+1786:                         </div>
+1787:                     </div>
+1788: 
+1789:                     {studentsLoading ? (
+1790:                         <div className="py-20 text-center space-y-4">
+1791:                             <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+1792:                             <p className="text-xl font-bold text-slate-400 dark:text-slate-555                    <div className="flex flex-col lg:flex-row gap-4 items-center justify-between print:hidden">
+1793:                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-grow max-w-5xl">
+1794:                             <div className="relative w-full max-w-md">
+1795:                                 <input
+1796:                                     type="text"
+1797:                                     placeholder="ابحث عن مخدوم بالاسم أو الكود..."
+1798:                                     value={searchTerm}
+1799:                                     onChange={(e) => setSearchTerm(e.target.value)}
+1800:                                     className="w-full p-3 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
+1801:                                 />
+1802:                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-555" />
+1803:                             </div>
+1804: 
+1805:                             <select
+1806:                                 value={selectedStageTab2}
+1807:                                 onChange={e => { setSelectedStageTab2(e.target.value); setSelectedClassTab2('الكل'); }}
+1808:                                 className="w-full sm:w-44 p-3 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+1809:                                 disabled={(isStageServant || isClassServant) && !!myStage}
+1810:                             >
+1811:                                 <option value="الكل">كل المراحل</option>
+1812:                                 {Object.keys(STAGE_CLASS_MAP).map(stage => (
+1813:                                     <option key={stage} value={stage}>{stage}</option>
+1814:                                 ))}
+1815:                             </select>
+1816: 
+1817:                             <select
+1818:                                 value={selectedClassTab2}
+1819:                                 onChange={e => setSelectedClassTab2(e.target.value)}
+1820:                                 className="w-full sm:w-48 p-3 bg-white dark:bg-[#0f172a] text-slate-850 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300"
+1821:                                 disabled={selectedStageTab2 === 'الكل' || ((isClassServant || isStageServant) && myClasses.length <= 1)}
+1822:                             >
+1823:                                 {myClasses.length > 1 && <option value="الكل">كل الفصول</option>}
+1824:                                 {myClasses.map(cls => (
+1825:                                     <option key={cls} value={cls}>{cls}</option>
+1826:                                 ))}
+1827:                             </select>
+1828: 
+1829:                             <button 
+1830:                                 onClick={() => setShowAddForm(!showAddForm)} 
+1831:                                 className={`px-5 py-3 font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${showAddForm ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-lg' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'}`}
+1832:                             >
+1833:                                 <UserPlus size={20} />
+1834:                                 <span>{showAddForm ? 'إلغاء الإضافة' : 'إضافة مخدوم جديد'}</span>
+1835:                             </button>
+1836:                         </div>
+1837:                         <div className="flex items-center gap-3 whitespace-nowrap">
+1838:                             <button 
+1839:                                 type="button"
+1840:                                 onClick={() => window.print()}
+1841:                                 className="px-4 py-2.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white font-bold rounded-xl shadow transition-all flex items-center gap-2 cursor-pointer border-none"
+1842:                             >
+1843:                                 <Printer size={18} />
+1844:                                 <span>طباعة الكشف</span>
+1845:                             </button>
+1846:                             <span className="text-sm font-bold text-slate-500 dark:text-slate-400">
+1847:                                 إجمالي: {filteredStudentsTab2.length} مخدوم
+1848:                             </span>
+1849:                         </div>
+1850:                     </div>لمراحل</option>
+1851:                                 {Object.keys(STAGE_CLASS_MAP).map(stage => (
+1852:                                     <option key={stage} value={stage}>{stage}</option>
+1853:                                 ))}
+1854:                             </select>
+1855: 
+1856:                             <select
+1857:                                 value={selectedClassTab2}
+1858:                                 onChange={e => setSelectedClassTab2(e.target.value)}
+1859:                                 className="w-full sm:w-48 p-3 bg-white dark:bg-[#0f172a] text-slate-850 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300"
+1860:                                 disabled={selectedStageTab2 === 'الكل' || ((isClassServant || isStageServant) && myClasses.length <= 1)}

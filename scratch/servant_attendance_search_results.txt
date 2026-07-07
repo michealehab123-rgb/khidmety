@@ -1,0 +1,7 @@
+Line 329: await markAttendance(student.id, Number(attendancePointsInput));
+Line 2457: const markAttendance = async (id, pointsToAdd = 5) => {
+Line 2665: const removeAttendance = async (id, dateStr) => {
+Line 3435: <StudentRow
+Line 3443: markAttendance={markAttendance}
+Line 3599: <StudentRow
+Line 3607: markAttendance={markAttendance}

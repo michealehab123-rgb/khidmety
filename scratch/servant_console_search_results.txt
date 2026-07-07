@@ -1,0 +1,7 @@
+Line 785: export function MasterAdminConsole({ studentsList = [], servantsList = [], attendanceRecords = [], visitationRecords = [] }) {
+Line 817: const [selectedStage, setSelectedStage] = useState(() => isStageServant || isClassServant ? myStage : (localStorage.getItem('master_console_stage') || ''));
+Line 819: const [selectedClass, setSelectedClass] = useState(() => localStorage.getItem('master_console_class') || '');
+Line 845: localStorage.setItem('master_console_class', authorizedClasses[0]);
+Line 865: localStorage.setItem('master_console_stage', val);
+Line 867: localStorage.removeItem('master_console_class');
+Line 879: localStorage.setItem('master_console_class', val);

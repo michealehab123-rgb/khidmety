@@ -1,0 +1,120 @@
+                        <X size={16} />
+                    </button>
+                </div>
+            )}
+
+            {/* Bulk Print Container */}
+            <div className="bulk-print-container hidden">
+                {students.filter(s => selectedStudentsPrint.includes(s.id)).map(student => (
+                    <div key={student.id} className="bulk-card-page">
+                        <div className="bulk-card-inner">
+                            {/* Decorative background vectors */}
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(30,58,138,0.3),transparent_70%)] pointer-events-none z-0" />
+                            <div className="absolute -right-[10%] -top-[10%] w-[35cqw] h-[35cqw] bg-amber-500/5 rounded-full blur-[3cqw] pointer-events-none z-0" />
+                            <div className="absolute -left-[10%] -bottom-[10%] w-[45cqw] h-[45cqw] bg-blue-500/5 rounded-full blur-[4cqw] pointer-events-none z-0" />
+                            
+                            {/* Card Body */}
+                            <div className="flex justify-between items-stretch flex-1 z-10 gap-[3cqw] min-h-0">
+                                {/* Right side visually: Photo & Personal info */}
+                                <div className="flex gap-[3cqw] items-center w-1/2 min-w-0">
+                                    {/* Student Photo */}
+                                    <div className="w-[18cqw] h-[22cqw] rounded-[2cqw] border-2 border-amber-500/30 overflow-hidden bg-slate-900 shadow-md shrink-0 flex items-center justify-center relative">
+                                        {student.photoUrl ? (
+                                            <img src={student.photoUrl} alt={student.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center text-slate-500 gap-[0.5cqw]">
+                                                <User size={32} className="text-slate-655 opacity-40" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Info text */}
+                                    <div className="flex flex-col justify-center min-w-0 flex-1">
+                                        <h2 className="text-[3.2cqw] font-black text-amber-400 truncate mb-[0.8cqw] select-none tracking-wide text-right leading-none">
+                                            {student.name.split(' ').slice(0, 3).join(' ')}
+                                        </h2>
+                                        <div className="space-y-[0.8cqw] text-right">
+                                            <div className="flex items-center gap-[1.5cqw] text-[1.9cqw] text-slate-300 font-bold justify-start">
+                                                <span className="text-slate-400 select-none">كود:</span>
+                                                <span className="font-mono text-amber-500/90 truncate">#{student.code}</span>
+                                            </div>
+                                            <div className="flex items-center gap-[1.5cqw] text-[1.9cqw] text-slate-300 font-bold justify-start">
+                                                <span className="text-slate-400 select-none">الرقم:</span>
+                                                <span className="truncate">{student.phones && student.phones[0] ? student.phones[0] : '—'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Left side visually: Badges & QR Code */}
+                                <div className="flex flex-col items-center gap-[2cqw] w-1/2">
+                                    {/* Badges row */}
+                                    <div className="flex gap-[1.6cqw] w-full justify-center">
+                                        <div className="bg-white/5 rounded-[1.6cqw] p-[1.5cqw] border border-white/5 text-center flex-1 min-w-0">
+                                            <span className="block text-[1.6cqw] font-bold text-slate-400">الفصل</span>
+                                            <span className="text-[2.2cqw] font-black text-slate-200 block truncate">{student.assignedClass || 'غير محدد'}</span>
+                                        </div>
+                                        <div className="bg-white/5 rounded-[1.6cqw] p-[1.5cqw] border border-white/5 text-center flex-1 min-w-0">
+                                            <span className="block text-[1.6cqw] font-bold text-slate-400">المرحلة</span>
+                                            <span className="text-[2.2cqw] font-black text-slate-200 block truncate">{student.schoolGrade || 'غير محدد'}</span>
+                                        </div>
+                                    </div>
+                                    {/* QR Code */}
+                                    <div className="bg-white p-[2cqw] rounded-[2cqw] shadow-lg border border-amber-500/20 flex items-center justify-center">
+                                        <div className="w-[19cqw] h-[19cqw] flex items-center justify-center">
+                                            <QRCodeSVG 
+                                                value={student.id} 
+                                                style={{ width: '100%', height: '100%' }}
+                                                level="H"
+                                                includeMargin={false}
+                                                fgColor="#0f172a"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Footer Section */}
+                            <div className="text-center z-10 border-t border-white/10 pt-[1.6cqw] flex justify-between items-center text-[1.8cqw] font-semibold text-slate-400">
+                                <span>كارنيه التحضير الذكي للأنشطة</span>
+                                <span className="text-amber-500/80 font-black">2026 / 2027</span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Bulk Print Styles */}
+            {isPrintingBulk && (
+                <style>{`
+                    @media print {
+                        @page {
+                            size: 8.5cm 5.4cm;
+                            margin: 0;
+                        }
+
+                        /* For bulk printing, neutralize all intermediate layouts */
+                        body.printing-bulk #root, 
+                        body.printing-bulk #root *:not(.bulk-print-container):not(.bulk-print-container *) {
+                            position: static !important;
+                            transform: none !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            height: 0 !important;
+                            width: 0 !important;
+                            overflow: visible !important;
+                            box-shadow: none !important;
+                            filter: none !important;
+                            backdrop-filter: none !important;
+                        }
+                        
+                        body.printing-bulk {
+                            width: 8.5cm !important;
+                            height: 5.4cm !important;
+                            overflow: hidden !important;
+                            background-color: transparent !important;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }
+                        

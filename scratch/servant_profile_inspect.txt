@@ -1,0 +1,17 @@
+Line 1: import { useState, useEffect, useRef, useMemo } from 'react';
+Line 146: const [attendanceConfigs, setAttendanceConfigs] = useState({});
+Line 155: useEffect(() => {
+Line 180: // Fetch their students to calculate stats — scoped to this servant's class/stage
+Line 203: // Fetch and sync class-isolated attendance configs
+Line 204: useEffect(() => {
+Line 205: const unsub = onSnapshot(collection(db, 'attendance_config'), (snapshot) => {
+Line 210: setAttendanceConfigs(configMap);
+Line 264: useEffect(() => {
+Line 327: const calculateStats = () => {
+Line 332: if (!classFilteredStudents || classFilteredStudents.length === 0) return { total: 0, attended: 0, totalStudentsForAttendance: 0, visitedRatio: 0, visitedCount: 0, homeRate: 0, phoneRate: 100 };
+Line 343: let totalStudentsForAttendance = 0;
+Line 351: // CRITICAL EXCLUSION: Only count student for attendance if they existed on last Friday
+Line 354: totalStudentsForAttendance++;
+Line 355: const isAttended = st.attendance && st.attendance.some(d => d.startsWith(lastFriday));
+Line 367: // CRITICAL EXCLUSION: Only count student for monthly stats if they existed in this month
+Line 383: totalStudentsForAttendance,

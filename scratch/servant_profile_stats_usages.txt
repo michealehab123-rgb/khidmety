@@ -1,0 +1,4 @@
+Line 519: <p className="text-3xl font-black text-slate-900 dark:text-white">{stats.total} <span className="text-base font-bold text-slate-400 dark:text-slate-500">مخدوم</span></p>
+Line 529: <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{stats.attended} <span className="text-base font-bold text-slate-400 dark:text-slate-500">من {stats.totalStudentsForAttendance}</span></p>
+Line 544: <span className="font-black text-slate-900 dark:text-white text-sm">{stats.homeRate}%</span>
+Line 548: <span className="font-black text-slate-900 dark:text-white text-sm">{stats.phoneRate}%</span>

@@ -1,0 +1,81 @@
+594:     const handleToggleWeeklyFollowUp = async (servantId, weekKey, field, currentValue) => {
+595:         const s = servants.find(x => x.id === servantId);
+596:         if (!s) return;
+597:         
+598:         const updatedWeeklyFollowUp = {
+599:             ...(s.weeklyFollowUp || {}),
+600:             [weekKey]: {
+601:                 ...(s.weeklyFollowUp?.[weekKey] || {}),
+602:                 [field]: !currentValue
+603:             }
+604:         };
+605: 
+606:         try {
+607:             await updateDoc(doc(db, 'servants', servantId), {
+608:                 weeklyFollowUp: updatedWeeklyFollowUp
+609:             });
+610:         } catch (error) {
+611:             console.error("Error updating weekly follow-up by admin:", error);
+612:             alert('حدث خطأ أثناء حفظ التحديث');
+613:         }
+614:     };
+615: 
+616:     const filteredServants = servants.filter(s => {
+617:         const term = searchTerm.toLowerCase();
+618:         const matchesSearch = (
+619:             (s.name && s.name.toLowerCase().includes(term)) ||
+620:             (s.code && s.code.toLowerCase().includes(term))
+621:         );
+622:         if (!matchesSearch) return false;
+623: 
+624:         if (selectedStage && s.assignedStage !== selectedStage) return false;
+625:         if (selectedClass) {
+626:             const sClasses = s.myClasses || (s.assignedClass ? [s.assignedClass] : []);
+627:             const isManaged = s.managedClasses?.includes(selectedClass);
+628:             const isAssigned = sClasses.includes(selectedClass);
+629:             if (!isManaged && !isAssigned) return false;
+630:         }
+631: 
+632:         return true;
+633:     });
+634: 
+635:     const currentFridaysOfMonth = useMemo(() => {
+636:         return getFridaysInMonth(selectedYear, selectedMonth);
+637:     }, [selectedYear, selectedMonth]);
+638: 
+639:     const followUpFilteredServants = useMemo(() => {
+640:         if (activeTab !== 'followup') return [];
+641: 
+642:         return filteredServants.filter(s => {
+643:             if (reportType === 'weekly') {
+644:                 return isServantActiveInWeek(s, selectedWeekKey);
+645:             } else {
+646:                 return currentFridaysOfMonth.some(fKey => isServantActiveInWeek(s, fKey));
+647:             }
+648:         });
+649:     }, [filteredServants, activeTab, reportType, selectedWeekKey, currentFridaysOfMonth]);
+650: 
+651:     const followUpStats = useMemo(() => {
+652:         const totalServants = followUpFilteredServants.length;
+653:         if (totalServants === 0) {
+654:             return { service: 0, liturgy: 0, meeting: 0, prep: 0, details: {} };
+655:         }
+656: 
+657:         if (reportType === 'weekly') {
+658:             let serviceCount = 0;
+659:             let liturgyCount = 0;
+660:             let meetingCount = 0;
+661:             let prepCount = 0;
+662:             
+663:             followUpFilteredServants.forEach(s => {
+664:                 const data = s.weeklyFollowUp?.[selectedWeekKey] || {};
+665:                 if (data.attendanceService) serviceCount++;
+666:                 if (data.attendanceLiturgy) liturgyCount++;
+667:                 if (data.attendanceMeeting) meetingCount++;
+668:                 if (data.preparation) prepCount++;
+669:             });
+670:             
+671:             return {
+672:                 service: Math.round((serviceCount / totalServants) * 100),
+673:                 liturgy: Math.round((liturgyCount / totalServants) * 100),
+674:                 meeting: Math.round((meetingCount / totalServants) * 100),

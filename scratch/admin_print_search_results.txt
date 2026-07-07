@@ -1,0 +1,289 @@
+=== SEARCHING src/pages/AdminDashboard.jsx ===
+Line 838: window.print();
+    823:         window.addEventListener('afterprint', handleAfterPrintBulk);
+    824:         return () => window.removeEventListener('afterprint', handleAfterPrintBulk);
+    825:     }, []);
+    826: 
+    827:     const handleBulkPrint = () => {
+    828:         originalTitleRef.current = document.title;
+    829:         const stageName = selectedStagePrint === 'الكل' ? 'كل المراحل' : selectedStagePrint;
+    830:         const className = selectedClassPrint === 'الكل' ? 'كل الفصول' : selectedClassPrint;
+    831:         const printDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'numeric', day: 'numeric' }).replace(/\//g, '-');
+    832:         document.title = `${stageName} - ${className} - ${printDate}`;
+    833: 
+    834:         setIsPrintingBulk(true);
+    835:         document.body.classList.add('printing-bulk');
+    836:         // Small delay to ensure render updates are processed before print dialog pops
+    837:         setTimeout(() => {
+--> 838:             window.print();
+    839:         }, 150);
+    840:     };
+    841: 
+    842:     const handleStageChange = (stage) => {
+    843:         if (isStageServant) return; // منع التلاعب بأي شكل
+    844:         if (!stage) {
+    845:             setNewStudent(prev => ({ ...prev, schoolGrade: stage, assignedClass: '', code: '', password: '' }));
+    846:             return;
+    847:         }
+    848: 
+    849:         const stageNorm = normalizeArabic(stage);
+    850:         const standardNorms = ['ابتدائي', 'اعدادي', 'ثانوي'].map(normalizeArabic);
+    851:         const existingStages = Array.from(new Set(students.map(s => s.schoolGrade).filter(Boolean)));
+    852:         const uniqueCustomStages = [];
+----------------------------------------
+Line 1565: onClick={() => setSearchParams({ tab: 'print_cards' })}
+    1550:                         تسجيل الحضور
+    1551:                     </button>
+    1552:                     <button
+    1553:                         onClick={() => setSearchParams({ tab: 'bonus' })}
+    1554:                         className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'bonus' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1555:                     >
+    1556:                         بونص
+    1557:                     </button>
+    1558:                     <button
+    1559:                         onClick={() => setSearchParams({ tab: 'directory' })}
+    1560:                         className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'directory' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1561:                     >
+    1562:                         كشوف المخدومين
+    1563:                     </button>
+    1564:                     <button
+--> 1565:                         onClick={() => setSearchParams({ tab: 'print_cards' })}
+    1566:                         className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'print_cards' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1567:                     >
+    1568:                         طباعة الكارنيهات 💳
+    1569:                     </button>
+    1570:                 </div>
+    1571:             )}
+    1572: 
+    1573:             {activeTab === 'master_console' && (isGeneralAdmin || isStageServant) && (
+    1574:                 <MasterAdminConsole 
+    1575:                     studentsList={mappedStudentsList} 
+    1576:                     servantsList={servants} 
+    1577:                     attendanceRecords={attendanceRecords} 
+    1578:                     visitationRecords={visitationRecords} 
+    1579:                 />
+----------------------------------------
+Line 1566: className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer $
+    1551:                     </button>
+    1552:                     <button
+    1553:                         onClick={() => setSearchParams({ tab: 'bonus' })}
+    1554:                         className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'bonus' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1555:                     >
+    1556:                         بونص
+    1557:                     </button>
+    1558:                     <button
+    1559:                         onClick={() => setSearchParams({ tab: 'directory' })}
+    1560:                         className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'directory' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1561:                     >
+    1562:                         كشوف المخدومين
+    1563:                     </button>
+    1564:                     <button
+    1565:                         onClick={() => setSearchParams({ tab: 'print_cards' })}
+--> 1566:                         className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'print_cards' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1567:                     >
+    1568:                         طباعة الكارنيهات 💳
+    1569:                     </button>
+    1570:                 </div>
+    1571:             )}
+    1572: 
+    1573:             {activeTab === 'master_console' && (isGeneralAdmin || isStageServant) && (
+    1574:                 <MasterAdminConsole 
+    1575:                     studentsList={mappedStudentsList} 
+    1576:                     servantsList={servants} 
+    1577:                     attendanceRecords={attendanceRecords} 
+    1578:                     visitationRecords={visitationRecords} 
+    1579:                 />
+    1580:             )}
+----------------------------------------
+Line 1748: <div className="flex flex-col lg:flex-row gap-4 items-center justify-between print:hidden">
+    1733:                                 );
+    1734:                             })}
+    1735:                             {filteredStudentsTab1.length === 0 && (
+    1736:                                 <div className="py-20 text-center bg-white dark:bg-[#1e293b] rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 transition-colors duration-300">
+    1737:                                     <Search size={64} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
+    1738:                                     <p className="text-xl font-bold text-slate-400 dark:text-slate-500">لا يوجد مخدومين بهذا الاسم أو الكود في نطاقك</p>
+    1739:                                 </div>
+    1740:                             )}
+    1741:                         </div>
+    1742:                     )}
+    1743:                 </>
+    1744:             )}
+    1745: 
+    1746:             {activeTab === 'directory' && (
+    1747:                 <div className="space-y-6 animate-in fade-in duration-300">
+--> 1748:                     <div className="flex flex-col lg:flex-row gap-4 items-center justify-between print:hidden">
+    1749:                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-grow max-w-5xl">
+    1750:                             <div className="relative w-full max-w-md">
+    1751:                                 <input
+    1752:                                     type="text"
+    1753:                                     placeholder="ابحث عن مخدوم بالاسم أو الكود..."
+    1754:                                     value={searchTerm}
+    1755:                                     onChange={(e) => setSearchTerm(e.target.value)}
+    1756:                                     className="w-full p-3 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
+    1757:                                   />
+    1758:                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-555" />
+    1759:                             </div>
+    1760: 
+    1761:                             <select
+    1762:                                 value={selectedStageTab2}
+----------------------------------------
+Line 1796: onClick={() => window.print()}
+    1781:                                     <option key={cls} value={cls}>{cls}</option>
+    1782:                                 ))}
+    1783:                             </select>
+    1784: 
+    1785:                             <button 
+    1786:                                 onClick={() => setShowAddForm(!showAddForm)} 
+    1787:                                 className={`px-5 py-3 font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${showAddForm ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-lg' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'}`}
+    1788:                             >
+    1789:                                 <UserPlus size={20} />
+    1790:                                 <span>{showAddForm ? 'إلغاء الإضافة' : 'إضافة مخدوم جديد'}</span>
+    1791:                             </button>
+    1792:                         </div>
+    1793:                         <div className="flex items-center gap-3 whitespace-nowrap">
+    1794:                             <button 
+    1795:                                 type="button"
+--> 1796:                                 onClick={() => window.print()}
+    1797:                                 className="px-4 py-2.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white font-bold rounded-xl shadow transition-all flex items-center gap-2 cursor-pointer border-none"
+    1798:                             >
+    1799:                                 <Printer size={18} />
+    1800:                                 <span>طباعة الكشف</span>
+    1801:                             </button>
+    1802:                             <span className="text-sm font-bold text-slate-500 dark:text-slate-400">
+    1803:                                 إجمالي: {filteredStudentsTab2.length} مخدوم
+    1804:                             </span>
+    1805:                         </div>
+    1806:                     </div>
+    1807: 
+    1808:                     {/* Print Header */}
+    1809:                     <div className="hidden print:flex mb-6 border-b-2 border-slate-800 dark:border-slate-700 pb-3 justify-between items-center w-full">
+    1810:                         <div>
+----------------------------------------
+Line 1809: <div className="hidden print:flex mb-6 border-b-2 border-slate-800 dark:border-slate-700 pb-3 justif
+    1794:                             <button 
+    1795:                                 type="button"
+    1796:                                 onClick={() => window.print()}
+    1797:                                 className="px-4 py-2.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white font-bold rounded-xl shadow transition-all flex items-center gap-2 cursor-pointer border-none"
+    1798:                             >
+    1799:                                 <Printer size={18} />
+    1800:                                 <span>طباعة الكشف</span>
+    1801:                             </button>
+    1802:                             <span className="text-sm font-bold text-slate-500 dark:text-slate-400">
+    1803:                                 إجمالي: {filteredStudentsTab2.length} مخدوم
+    1804:                             </span>
+    1805:                         </div>
+    1806:                     </div>
+    1807: 
+    1808:                     {/* Print Header */}
+--> 1809:                     <div className="hidden print:flex mb-6 border-b-2 border-slate-800 dark:border-slate-700 pb-3 justify-between items-center w-full">
+    1810:                         <div>
+    1811:                             <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 leading-normal">
+    1812:                                 كشف المخدومين - مدرسة الأحد
+    1813:                             </h2>
+    1814:                             <p className="text-sm font-bold text-slate-655 dark:text-slate-400">
+    1815:                                 {selectedStageTab2 !== 'الكل' && `المرحلة: ${selectedStageTab2}`} 
+    1816:                                 {selectedClassTab2 !== 'الكل' && ` - الفصل: ${selectedClassTab2}`}
+    1817:                             </p>
+    1818:                         </div>
+    1819:                         <div className="text-left">
+    1820:                             <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">العدد الإجمالي</div>
+    1821:                             <div className="text-xl font-black text-slate-800 dark:text-slate-200">{filteredStudentsTab2.length} مخدوم</div>
+    1822:                         </div>
+    1823:                     </div>
+----------------------------------------
+Line 1944: <div className="overflow-x-auto bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:
+    1929:                                 <div>
+    1930:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">أب الاعتراف</label>
+    1931:                                     <input className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={newStudent.fatherOfConfession} onChange={e => setNewStudent({ ...newStudent, fatherOfConfession: e.target.value })} placeholder="قدس أبونا..." />
+    1932:                                 </div>
+    1933:                                 <div>
+    1934:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">تاريخ الميلاد</label>
+    1935:                                     <input type="date" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 text-right transition-colors duration-300" value={newStudent.birthDate} onChange={e => setNewStudent({ ...newStudent, birthDate: e.target.value })} />
+    1936:                                 </div>
+    1937:                                 <button type="submit" disabled={isAdding} className="md:col-span-2 bg-blue-600 dark:bg-blue-700 dark:hover:bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 transition-all mt-2">
+    1938:                                     {isAdding ? 'جاري الحفظ...' : 'حفظ البيانات'}
+    1939:                                 </button>
+    1940:                             </div>
+    1941:                         </form>
+    1942:                     )}
+    1943: 
+--> 1944:                     <div className="overflow-x-auto bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 print:border-none print:shadow-none print:bg-transparent print:overflow-visible">
+    1945:                         <table className="w-full text-right border-collapse">
+    1946:                             <thead>
+    1947:                                 <tr className="bg-slate-100 dark:bg-[#0f172a] text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-800">
+    1948:                                     <th className="p-3">كود المخدوم</th>
+    1949:                                     <th className="p-3">اسم المخدوم</th>
+    1950:                                     <th className="p-3">المرحلة</th>
+    1951:                                     <th className="p-3">الفصل</th>
+    1952:                                     <th className="p-3">أرقام التليفون</th>
+    1953:                                     <th className="p-3">العناوين</th>
+    1954:                                     <th className="p-3">الصفات / الملاحظات</th>
+    1955:                                     <th className="p-3 text-center">حضور المخدوم</th>
+    1956:                                 </tr>
+    1957:                             </thead>
+    1958:                             <tbody>
+----------------------------------------
+Line 1989: {activeTab === 'print_cards' && renderPrintCardsTab()}
+    1974:                                         </td>
+    1975:                                         <td className="p-4 text-center font-bold text-emerald-600 dark:text-emerald-400">{student.attendance ? student.attendance.length : 0} جمعة</td>
+    1976:                                     </tr>
+    1977:                                 ))}
+    1978:                                 {filteredStudentsTab2.length === 0 && (
+    1979:                                     <tr>
+    1980:                                         <td colSpan="8" className="p-8 text-center text-slate-450 dark:text-slate-500 font-bold">لا توجد نتائج مطابقة للبحث في نطاق مرحلتك المصرحة</td>
+    1981:                                     </tr>
+    1982:                                 )}
+    1983:                             </tbody>
+    1984:                         </table>
+    1985:                     </div>
+    1986:                 </div>
+    1987:             )}
+    1988: 
+--> 1989:             {activeTab === 'print_cards' && renderPrintCardsTab()}
+    1990: 
+    1991:             {/* Attendance Modal */}
+    1992:             {attendanceModalStudentId && (
+    1993:                 <div className="fixed inset-0 z-[200] bg-slate-900/60 dark:bg-slate-955/80 backdrop-blur-sm flex items-center justify-center p-4">
+    1994:                      <div className="bg-white dark:bg-[#1e293b] rounded-3xl w-full max-w-md shadow-2xl p-6 md:p-8 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 transition-colors duration-300">
+    1995:                         <div className="flex justify-between items-start mb-6">
+    1996:                             <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100">سجل الحضور</h3>
+    1997:                             <button onClick={() => setAttendanceModalStudentId(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-xl transition-colors text-slate-400 dark:text-slate-555"><X size={28} /></button>
+    1998:                         </div>
+    1999:                         {(() => {
+    2000:                             const s = students.find(x => x.id === attendanceModalStudentId);
+    2001:                             if (!s || !s.attendance || s.attendance.length === 0) return (
+    2002:                                 <div className="py-10 text-center space-y-3">
+    2003:                                     <CalendarDays size={48} className="mx-auto text-slate-200 dark:text-slate-700" />
+----------------------------------------
+Line 2050: className="bulk-card-inner print-card-container aspect-[85/54] bg-gradient-to-b from-blue-900 via-sl
+    2035:                     ) : (
+    2036:                         <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+    2037:                     )}
+    2038:                     <span className="font-bold text-sm leading-relaxed">{toast.message}</span>
+    2039:                     <button onClick={() => setToast(prev => ({ ...prev, show: false }))} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-2">
+    2040:                         <X size={16} />
+    2041:                     </button>
+    2042:                 </div>
+    2043:             )}
+    2044: 
+    2045:             {/* Bulk Print Container */}
+    2046:             <div className="bulk-print-container hidden">
+    2047:                 {students.filter(s => selectedStudentsPrint.includes(s.id)).map(student => (
+    2048:                     <div key={student.id} className="bulk-card-page">
+    2049:                         <div 
+--> 2050:                             className="bulk-card-inner print-card-container aspect-[85/54] bg-gradient-to-b from-blue-900 via-slate-905 to-slate-950 text-white relative overflow-hidden flex flex-col justify-between"
+    2051:                             dir="rtl"
+    2052:                         >
+    2053:                             {/* Background Decorative Circles */}
+    2054:                             <div className="absolute -top-[12cqw] -right-[12cqw] w-[32cqw] h-[32cqw] bg-blue-600/15 rounded-full blur-[4.8cqw] pointer-events-none"></div>
+    2055:                             <div className="absolute -bottom-[12cqw] -left-[12cqw] w-[32cqw] h-[32cqw] bg-teal-500/15 rounded-full blur-[4.8cqw] pointer-events-none"></div>
+    2056:                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[38cqw] h-[38cqw] bg-amber-500/5 rounded-full blur-[6cqw] pointer-events-none"></div>
+    2057: 
+    2058:                             {/* Header Section */}
+    2059:                             <div className="text-center z-10 border-b border-white/10 pb-[2.5%] mb-[1%]">
+    2060:                                 <h2 className="text-[3.2cqw] font-black tracking-wide bg-gradient-to-l from-amber-400 to-yellow-300 bg-clip-text text-transparent">
+    2061:                                     كنيسة السيدة العذراء مريم
+    2062:                                 </h2>
+    2063:                                 <p className="text-[2cqw] font-bold text-slate-400 uppercase tracking-widest mt-[0.5%]">
+    2064:                                     خدمة مدارس الأحد
+----------------------------------------

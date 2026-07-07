@@ -1,0 +1,5 @@
+Line 711: export function MasterAdminConsole({ studentsList = [], servantsList = [], attendanceRecords = [], visitationRecords = [] }) {
+Line 835: const classAttendance = attendanceRecords.filter(r => r.stage === selectedStage && r.class === selectedClass) || [];
+Line 1019: }, [selectedStage, selectedClass, studentsList, servantsList, attendanceRecords, visitationRecords]);
+Line 1429: const attendanceRecords = useMemo(() => {
+Line 3153: attendanceRecords={attendanceRecords}

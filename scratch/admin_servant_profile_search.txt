@@ -1,0 +1,10 @@
+Line 151: const [students, setStudents] = useState([]);
+Line 152: const [studentsLoading, setStudentsLoading] = useState(true);
+Line 155: const unsub = onSnapshot(collection(db, 'students'), (snap) => {
+Line 163: console.error("Error fetching students:", error);
+Line 225: students.forEach(st => {
+Line 271: students.forEach(st => {
+Line 316: }, [students, servant, reportType, selectedWeekKey, selectedMonth, selectedYear, currentFridaysOfMonth, weeksList]);
+Line 828: const statsList = [
+Line 837: {statsList.map(st => {
+Line 900: {studentsLoading ? (

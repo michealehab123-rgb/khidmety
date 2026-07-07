@@ -1,0 +1,110 @@
+1841:                                 className="px-4 py-2.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white font-bold rounded-xl shadow transition-all flex items-center gap-2 cursor-pointer border-none"
+1842:                             >
+1843:                                 <Printer size={18} />
+1844:                                 <span>طباعة الكشف</span>
+1845:                             </button>
+1846:                             <span className="text-sm font-bold text-slate-500 dark:text-slate-400">
+1847:                                 إجمالي: {filteredStudentsTab2.length} مخدوم
+1848:                             </span>
+1849:                         </div>
+1850:                     </div>لمراحل</option>
+1851:                                 {Object.keys(STAGE_CLASS_MAP).map(stage => (
+1852:                                     <option key={stage} value={stage}>{stage}</option>
+1853:                                 ))}
+1854:                             </select>
+1855: 
+1856:                             <select
+1857:                                 value={selectedClassTab2}
+1858:                                 onChange={e => setSelectedClassTab2(e.target.value)}
+1859:                                 className="w-full sm:w-48 p-3 bg-white dark:bg-[#0f172a] text-slate-850 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300"
+1860:                                 disabled={selectedStageTab2 === 'الكل' || ((isClassServant || isStageServant) && myClasses.length <= 1)}
+1861:                             >
+1862:                                 {myClasses.length > 1 && <option value="الكل">كل الفصول</option>}
+1863:                                 {myClasses.map(cls => (
+1864:                                     <option key={cls} value={cls}>{cls}</option>
+1865:                                 ))}
+1866:                             </select>
+1867: 
+1868:                             <button 
+1869:                                 type="button"
+1870:                                 onClick={() => window.print()}
+1871:                                 className="px-5 py-3 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer border-none whitespace-nowrap"
+1872:                             >
+1873:                                 <Printer size={18} />
+1874:                                 <span>طباعة الكشوف</span>
+1875:                             </button>
+1876: 
+1877:                             <button 
+1878:                                 onClick={() => setShowAddForm(!showAddForm)} 
+1879:                                 className={`px-5 py-3 font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${showAddForm ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-lg' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'}`}
+1880:                             >
+1881:                                 <UserPlus size={20} />
+1882:                                 <span>{showAddForm ? 'إلغاء الإضافة' : 'إضافة مخدوم جديد'}</span>
+1883:                             </button>
+1884:                         </div>
+1885:                         <div className="text-sm font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+1886:                             إجمالي: {filteredStudentsTab2.length} مخدوم
+1887:                         </div>
+1888:                     </div>
+1889: 
+1890:                     {showAddForm && (
+1891:                         <form onSubmit={handleAddStudent} className="bg-white dark:bg-[#1e293b] p-6 rounded-xl border border-slate-200 dark:border-slate-800 mb-8 transition-colors duration-300">
+1892:                             <h2 className="text-xl font-bold mb-6 text-slate-800 dark:text-slate-100">إضافة بيانات مخدوم</h2>
+1893:                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+1894:                                 <div className="md:col-span-2">
+1895:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">الاسم</label>
+1896:                                     <input className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300" value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} required />
+1897:                                 </div>
+1898:                                 <div className="md:col-span-1">
+1899:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">المرحلة الدراسية</label>
+1900:                                     <select
+1901:                                         className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+1902:                                         value={newStudent.schoolGrade}
+1903:                                         onChange={e => handleStageChange(e.target.value)}
+1904:                                         disabled={(isStageServant || isClassServant) && !!myStage}
+1905:                                         required
+1906:                                     >
+1907:                                         <option value="">اختر المرحلة</option>
+1908:                                         <option value="ابتدائي">ابتدائي</option>
+1909:                                         <option value="اعدادي">اعدادي</option>
+1910:                                         <option value="ثانوي">ثانوي</option>
+1911:                                     </select>
+1912:                                 </div>
+1913:                                 <div className="md:col-span-1">
+1914:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">الكود (تقديري تلقائي)</label>
+1915:                                     <input dir="ltr" className="w-full p-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-slate-400 dark:text-slate-555 cursor-not-allowed text-left" value={newStudent.code} disabled={true} required />
+1916:                                 </div>
+1917:                                 <div className="md:col-span-1">
+1918:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">كلمة المرور (تقديري تلقائي)</label>
+1919:                                     <input dir="ltr" className="w-full p-3 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-slate-400 dark:text-slate-555 cursor-not-allowed text-left" value={newStudent.password} disabled={true} required />
+1920:                                 </div>
+1921:                                 <div className="md:col-span-1">
+1922:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400 mb-2">الفصل (للتوزيع)</label>
+1923:                                     <select
+1924:                                         className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-slate-100 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+1925:                                         value={newStudent.assignedClass}
+1926:                                         onChange={e => setNewStudent({ ...newStudent, assignedClass: e.target.value })}
+1927:                                         disabled={!newStudent.schoolGrade || ((isClassServant || isStageServant) && myClasses.length <= 1)}
+1928:                                     >
+1929:                                         {!newStudent.schoolGrade
+1930:                                             ? <option value="" disabled>اختر المرحلة الدراسية أولاً</option>
+1931:                                             : (
+1932:                                                 <>
+1933:                                                     <option value="">اختر الفصل</option>
+1934:                                                     {(isClassServant || isStageServant) ? (
+1935:                                                         myClasses.map(cls => (
+1936:                                                             <option key={cls} value={cls}>{cls}</option>
+1937:                                                         ))
+1938:                                                     ) : (
+1939:                                                         (STAGE_CLASS_MAP[newStudent.schoolGrade] || []).map(cls => (
+1940:                                                             <option key={cls} value={cls}>{cls}</option>
+1941:                                                         ))
+1942:                                                     )}
+1943:                                                 </>
+1944:                                             )
+1945:                                         }
+1946:                                     </select>
+1947:                                 </div>
+1948:                                 <div className="md:col-span-2 space-y-4">
+1949:                                     <label className="block text-sm font-bold text-slate-655 dark:text-slate-400">أرقام التليفون</label>
+1950:                                     {newStudent.phones.map((phone, idx) => (

@@ -1,0 +1,217 @@
+Match 1 at position 90814:
+>
+
+
+
+                    <p className="text-slate-500 dark:text-slate-400 transition-colors duration-300">
+
+
+
+                        {activeTab === 'bonus' ? 'إضافة نقاط بونص ومكافآت للمخدومين' : 'إدارة مخدومين مدرسة الأحد'}
+
+
+
+                    </p>
+
+
+
+                </div>
+
+
+
+                {activeTab === 'attendance' && (
+
+
+
+                    <Link 
+
+
+
+                        to="/servant/scanner"
+
+
+
+                        className="flex items-center gap-2 bg-gradient-to-l from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white px-5 py-3 rounded-2xl font-black text-sm shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer shrink-0"
+
+
+
+                    >
+
+
+
+                        <Camera size={18} />
+
+
+
+                        <span>تحضير سريع بالـ QR 📸</span>
+
+
+
+                    </Link>
+
+
+
+                )}
+
+
+
+            </header>
+
+
+
+            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl mb-8 gap-1 w-full max-w-xl border border-slate-200/50 dark:border-slate-800">
+
+
+
+                <button
+
+
+
+                    onClick={() => setActiveTab('attendance')}
+
+
+
+                    className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'attenda
+--------------------------------------------------
+Match 2 at position 91792:
+-2xl mb-8 gap-1 w-full max-w-xl border border-slate-200/50 dark:border-slate-800">
+
+
+
+                <button
+
+
+
+                    onClick={() => setActiveTab('attendance')}
+
+
+
+                    className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'attendance' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+
+
+
+                >
+
+
+
+                    تسجيل الحضور
+
+
+
+                </button>
+
+
+
+                <button
+
+
+
+                    onClick={() => setActiveTab('bonus')}
+
+
+
+                    className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'bonus' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+
+
+
+                >
+
+
+
+                    بونص
+
+
+
+                </button>
+
+
+
+                <button
+
+
+
+                    onClick={() => setActiveTab('directory')}
+
+
+
+                    className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'directory' ? 'bg-w
+--------------------------------------------------
+Match 3 at position 93579:
+s' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+
+
+
+                >
+
+
+
+                    طباعة الكارنيهات 💳
+
+
+
+                </button>
+
+
+
+            </div>
+
+
+
+
+
+
+
+            {activeTab === 'attendance' && (
+
+
+
+                <>
+
+
+
+                    <div className="relative mb-8">
+
+
+
+                        <input
+
+
+
+                            type="text"
+
+
+
+                            placeholder="بحث بالاسم أو الكود..."
+
+
+
+                            value={searchTerm}
+
+
+
+                            onChange={(e) => setSearchTerm(e.target.value)}
+
+
+
+                            className="w-full p-4 pr-12 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
+
+
+
+                        />
+
+
+
+                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-555" />
+
+
+
+                    </div>
+
+
+
+
+
+
+
+                    <div className="flex flex-col sm:flex-row gap-3 mb-8 items-center bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:
+--------------------------------------------------

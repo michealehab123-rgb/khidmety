@@ -1,0 +1,90 @@
+=== SEARCHING attendance logic in AdminDashboard ===
+Line 217: const [attendancePointsInput, setAttendancePointsInput] = useState('');
+Line 221: ? /^\d*$/.test(attendancePointsInput)
+Line 223: : /^\d+$/.test(attendancePointsInput);
+Line 283: await markAttendance(student.id, Number(attendancePointsInput));
+Line 287: console.error("Error marking attendance:", error);
+Line 301: const isAttendedToday = student.attendance?.some(dateStr => {
+Line 373: {!isBonus && consecutiveGiftEnabled && ((student.attendanceStreak || 0) > 0 || (student.pendingGifts || 0) > 0) && (
+Line 377: {(student.attendanceStreak || 0) > 0 && (
+Line 381: 🔥 {student.attendanceStreak}
+Line 495: value={attendancePointsInput}
+Line 497: onChange={(e) => setAttendancePointsInput(e.target.value)}
+Line 501: !isPointsValid && attendancePointsInput !== ''
+Line 559: if (isPointsValid && Number(attendancePointsInput) > 0) {
+Line 561: if (!window.confirm(`هل أنت متأكد أنك تريد خصم ${attendancePointsInput} صفة بونص للمخدوم؟`)) {
+Line 571: await addPoints(student.id, -Number(attendancePointsInput));
+Line 573: setAttendancePointsInput('');
+Line 589: disabled={isMutatingBonus || !isPointsValid || Number(attendancePointsInput) <= 0}
+Line 593: isPointsValid && Number(attendancePointsInput) > 0 && !isMutatingBonus
+Line 615: if (isPointsValid && Number(attendancePointsInput) > 0) {
+Line 621: await addPoints(student.id, Number(attendancePointsInput));
+Line 623: setAttendancePointsInput('');
+Line 639: disabled={isMutatingBonus || !isPointsValid || Number(attendancePointsInput) <= 0}
+Line 643: isPointsValid && Number(attendancePointsInput) > 0 && !isMutatingBonus
+Line 835: const classAttendance = attendanceRecords.filter(r => r.stage === selectedStage && r.class === selectedClass) || [];
+Line 837: const lastRecord = classAttendance.sort((a, b) => b.date?.seconds - a.date?.seconds)[0];
+Line 915: let totalStudentsForAttendance = 0;
+Line 941: totalStudentsForAttendance++;
+Line 943: const isAttended = st.attendance && st.attendance.some(dStr => {
+Line 1005: totalStudentsForAttendance: totalStudentsForAttendance,
+Line 1019: }, [selectedStage, selectedClass, studentsList, servantsList, attendanceRecords, visitationRecords]);
+Line 1421: currentStreak: s.attendanceStreak || 0
+Line 1429: const attendanceRecords = useMemo(() => {
+Line 1443: (st.attendance || []).forEach(dateStr => {
+Line 1769: const [attendanceModalStudentId, setAttendanceModalStudentId] = useState(null);
+Line 1773: const [attendanceConfigs, setAttendanceConfigs] = useState({});
+Line 1797: const unsub = onSnapshot(collection(db, 'attendance_config'), (snapshot) => {
+Line 1803: setAttendanceConfigs(configMap);
+Line 2091: attendance: [],
+Line 2151: const isStudentAttendedToday = student.attendance?.some(dateStr => {
+Line 2215: const markAttendance = async (id, pointsToAdd = 5) => {
+Line 2243: const attendanceDocId = `${student.id}_${todayStr}`;
+Line 2245: const attendanceRef = doc(db, 'attendance', attendanceDocId);
+Line 2267: const currentAttendance = currentStudentData.attendance || [];
+Line 2269: if (currentAttendance.includes(todayStr)) {
+Line 2277: const attendanceSnap = await getDoc(attendanceRef);
+Line 2279: if (attendanceSnap.exists()) {
+Line 2281: const data = attendanceSnap.data();
+Line 2297: console.log("Could not load attendance details", e);
+Line 2311: // 3. Write attendance doc
+Line 2313: batch.set(attendanceRef, {
+Line 2339: const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+Line 2343: const newAttendance = [...currentAttendance, todayStr];
+Line 2351: attendance: newAttendance,
+Line 2361: const newStreak = (currentStudentData.attendanceStreak || 0) + 1;
+Line 2371: studentUpdates.attendanceStreak = newStreak;
+Line 2413: console.error("Error marking attendance:", error);
+Line 2423: const removeAttendance = async (id, dateStr) => {
+Line 2435: const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+Line 2439: const currentAttendance = student?.attendance || [];
+Line 2441: const newAttendance = currentAttendance.filter(d => d !== dateStr);
+Line 2445: // Get pointsAdded from attendance record before deleting it
+Line 2447: const attendanceDocId = `${id}_${dateStr}`;
+Line 2449: const attendanceRef = doc(db, 'attendance', attendanceDocId);
+Line 2451: const attendanceSnap = await getDoc(attendanceRef);
+Line 2455: if (attendanceSnap.exists()) {
+Line 2457: pointsAdded = attendanceSnap.data().pointsAdded || 0;
+Line 2465: attendance: newAttendance,
+Line 2473: updates.attendanceStreak = calculateStreak(newAttendance);
+Line 2481: await deleteDoc(attendanceRef);
+Line 2513: console.error("Error removing attendance:", error);
+Line 2603: // Delete attendance records for this student
+Line 2605: const attendanceQuery = query(collection(db, 'attendance'), where('studentId', '==', id));
+Line 2607: const attendanceQuerySnap = await getDocs(attendanceQuery);
+Line 2609: for (const docSnap of attendanceQuerySnap.docs) {
+Line 3065: {activeTab === 'attendance' && (
+Line 3093: onClick={() => setSearchParams({ tab: 'attendance' })}
+Line 3153: attendanceRecords={attendanceRecords}
+Line 3163: {activeTab === 'attendance' && (
+Line 3265: const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+Line 3277: markAttendance={markAttendance}
+Line 3281: openAttendanceModal={setAttendanceModalStudentId}
+Line 3429: const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+Line 3441: markAttendance={markAttendance}
+Line 3445: openAttendanceModal={setAttendanceModalStudentId}
+Line 3981: {/* Attendance Modal */}
+Line 3983: {attendanceModalStudentId && (
+Line 3999: const s = students.find(x => x.id === attendanceModalStudentId);
+Line 4001: if (!s || !s.attendance || s.attendance.length === 0) return (
+Line 4017: {[...s.attendance].reverse().map((d, i) => (

@@ -1,0 +1,401 @@
+5968:                 {activeTab === 'attendance' && (
+5969: 
+5970: 
+5971: 
+5972:                     <Link 
+5973: 
+5974: 
+5975: 
+5976:                         to="/servant/scanner"
+5977: 
+5978: 
+5979: 
+5980:                         className="flex items-center gap-2 bg-gradient-to-l from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white px-5 py-3 rounded-2xl font-black text-sm shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer shrink-0"
+5981: 
+5982: 
+5983: 
+5984:                     >
+5985: 
+5986: 
+5987: 
+5988:                         <Camera size={18} />
+5989: 
+5990: 
+5991: 
+5992:                         <span>تحضير سريع بالـ QR 📸</span>
+5993: 
+5994: 
+5995: 
+5996:                     </Link>
+5997: 
+5998: 
+5999: 
+6000:                 )}
+6001: 
+6002: 
+6003: 
+6004:             </header>
+6005: 
+6006: 
+6007: 
+6008:             <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl mb-8 gap-1 w-full max-w-xl border border-slate-200/50 dark:border-slate-800">
+6009: 
+6010: 
+6011: 
+6012:                 <button
+6013: 
+6014: 
+6015: 
+6016:                     onClick={() => setActiveTab('attendance')}
+6017: 
+6018: 
+6019: 
+6020:                     className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'attendance' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+6021: 
+6022: 
+6023: 
+6024:                 >
+6025: 
+6026: 
+6027: 
+6028:                     تسجيل الحضور
+6029: 
+6030: 
+6031: 
+6032:                 </button>
+6033: 
+6034: 
+6035: 
+6036:                 <button
+6037: 
+6038: 
+6039: 
+6040:                     onClick={() => setActiveTab('bonus')}
+6041: 
+6042: 
+6043: 
+6044:                     className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'bonus' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+6045: 
+6046: 
+6047: 
+6048:                 >
+6049: 
+6050: 
+6051: 
+6052:                     بونص
+6053: 
+6054: 
+6055: 
+6056:                 </button>
+6057: 
+6058: 
+6059: 
+6060:                 <button
+6061: 
+6062: 
+6063: 
+6064:                     onClick={() => setActiveTab('directory')}
+6065: 
+6066: 
+6067: 
+6068:                     className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'directory' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+6069: 
+6070: 
+6071: 
+6072:                 >
+6073: 
+6074: 
+6075: 
+6076:                     كشوف المخدومين
+6077: 
+6078: 
+6079: 
+6080:                 </button>
+6081: 
+6082: 
+6083: 
+6084:                 <button
+6085: 
+6086: 
+6087: 
+6088:                     onClick={() => setActiveTab('print_cards')}
+6089: 
+6090: 
+6091: 
+6092:                     className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'print_cards' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+6093: 
+6094: 
+6095: 
+6096:                 >
+6097: 
+6098: 
+6099: 
+6100:                     طباعة الكارنيهات 💳
+6101: 
+6102: 
+6103: 
+6104:                 </button>
+6105: 
+6106: 
+6107: 
+6108:             </div>
+6109: 
+6110: 
+6111: 
+6112: 
+6113: 
+6114: 
+6115: 
+6116:             {activeTab === 'attendance' && (
+6117: 
+6118: 
+6119: 
+6120:                 <>
+6121: 
+6122: 
+6123: 
+6124:                     <div className="relative mb-8">
+6125: 
+6126: 
+6127: 
+6128:                         <input
+6129: 
+6130: 
+6131: 
+6132:                             type="text"
+6133: 
+6134: 
+6135: 
+6136:                             placeholder="بحث بالاسم أو الكود..."
+6137: 
+6138: 
+6139: 
+6140:                             value={searchTerm}
+6141: 
+6142: 
+6143: 
+6144:                             onChange={(e) => setSearchTerm(e.target.value)}
+6145: 
+6146: 
+6147: 
+6148:                             className="w-full p-4 pr-12 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
+6149: 
+6150: 
+6151: 
+6152:                         />
+6153: 
+6154: 
+6155: 
+6156:                         <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-555" />
+6157: 
+6158: 
+6159: 
+6160:                     </div>
+6161: 
+6162: 
+6163: 
+6164: 
+6165: 
+6166: 
+6167: 
+6168:                     <div className="flex flex-col sm:flex-row gap-3 mb-8 items-center bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors duration-300">
+6169: 
+6170: 
+6171: 
+6172:                         <span className="font-bold text-slate-650 dark:text-slate-400">تصفية حسب:</span>
+6173: 
+6174: 
+6175: 
+6176:                         <div className="flex gap-3 flex-wrap flex-1">
+6177: 
+6178: 
+6179: 
+6180:                             <select
+6181: 
+6182: 
+6183: 
+6184:                                 value={selectedStageTab1}
+6185: 
+6186: 
+6187: 
+6188:                                 onChange={e => { setSelectedStageTab1(e.target.value); setSelectedClassTab1('الكل'); }}
+6189: 
+6190: 
+6191: 
+6192:                                 className="w-full sm:w-44 p-3 bg-slate-50 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+6193: 
+6194: 
+6195: 
+6196:                                 disabled={(isStageServant || isClassServant) && !!myStage}
+6197: 
+6198: 
+6199: 
+6200:                             >
+6201: 
+6202: 
+6203: 
+6204:                                 <option value="الكل">كل المراحل</option>
+6205: 
+6206: 
+6207: 
+6208:                                 {Object.keys(STAGE_CLASS_MAP).map(stage => (
+6209: 
+6210: 
+6211: 
+6212:                                     <option key={stage} value={stage}>{stage}</option>
+6213: 
+6214: 
+6215: 
+6216:                                 ))}
+6217: 
+6218: 
+6219: 
+6220:                             </select>
+6221: 
+6222: 
+6223: 
+6224: 
+6225: 
+6226: 
+6227: 
+6228:                             <select
+6229: 
+6230: 
+6231: 
+6232:                                 value={selectedClassTab1}
+6233: 
+6234: 
+6235: 
+6236:                                 onChange={e => setSelectedClassTab1(e.target.value)}
+6237: 
+6238: 
+6239: 
+6240:                                 className="w-full sm:w-48 p-3 bg-slate-50 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300"
+6241: 
+6242: 
+6243: 
+6244:                                 disabled={selectedStageTab1 === 'الكل' || ((isClassServant || isStageServant) && myClasses.length <= 1)}
+6245: 
+6246: 
+6247: 
+6248:                             >
+6249: 
+6250: 
+6251: 
+6252:                                 {myClasses.length > 1 && <option value="الكل">كل الفصول</option>}
+6253: 
+6254: 
+6255: 
+6256:                                 {myClasses.map(cls => (
+6257: 
+6258: 
+6259: 
+6260:                                     <option key={cls} value={cls}>{cls}</option>
+6261: 
+6262: 
+6263: 
+6264:                                 ))}
+6265: 
+6266: 
+6267: 
+6268:                             </select>
+6269: 
+6270: 
+6271: 
+6272:                         </div>
+6273: 
+6274: 
+6275: 
+6276:                     </div>
+6277: 
+6278: 
+6279: 
+6280: 
+6281: 
+6282: 
+6283: 
+6284:                     {studentsLoading ? (
+6285: 
+6286: 
+6287: 
+6288:                         <div className="py-20 text-center space-y-4">
+6289: 
+6290: 
+6291: 
+6292:                             <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+6293: 
+6294: 
+6295: 
+6296:                             <p className="text-xl font-bold text-slate-400 dark:text-slate-555">جاري تحميل قائمة المخدومين...</p>
+6297: 
+6298: 
+6299: 
+6300:                         </div>
+6301: 
+6302: 
+6303: 
+6304:                     ) : (
+6305: 
+6306: 
+6307: 
+6308:                         <div className="space-y-6">
+6309: 
+6310: 
+6311: 
+6312:                             {filteredStudentsTab1.map(student => {
+6313: 
+6314: 
+6315: 
+6316:                                 const safeClassId = getSafeClassId(student.assignedClass);
+6317: 
+6318: 
+6319: 
+6320:                                 const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+6321: 
+6322: 
+6323: 
+6324:                                 return (
+6325: 
+6326: 
+6327: 
+6328:                                     <StudentRow 
+6329: 
+6330: 
+6331: 
+6332:                                         key={student.id} 
+6333: 
+6334: 
+6335: 
+6336:                                         student={student} 
+6337: 
+6338: 
+6339: 
+6340:                                         addPoints={addPoints} 
+6341: 
+6342: 
+6343: 
+6344:                                         markAttendance={markAttendance}
+6345: 
+6346:                                         markLiturgy={markLiturgy} 
+6347: 
+6348: 
+6349: 
+6350:                                         deleteStudent={handleDeleteStudent}
+6351: 
+6352: 
+6353: 
+6354:                                         openAttendanceModal={setAttendanceModalStudentId}
+6355: 
+6356: 
+6357: 
+6358:                                         resetPassword={resetPassword}
+6359: 
+6360: 
+6361: 
+6362:                                         shortcuts={getShortcutsForClass(student.assignedClass)}
+6363: 
+6364: 
+6365: 
+6366:                                         addShortcut={(val) => addShortcutForClass(student.assignedClass, val)}
+6367: 
+6368: 

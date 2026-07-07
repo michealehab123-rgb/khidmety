@@ -1,0 +1,97 @@
+=== SEARCHING src/pages/AdminStudentProfile.jsx ===
+Line 27: let streak = 0;
+Line 36: streak = 1;
+Line 41: streak++;
+Line 49: return streak;
+Line 109: const [attendanceConfigs, setAttendanceConfigs] = useState({});
+Line 120: const [attendancePointsInput, setAttendancePointsInput] = useState('');
+Line 133: ? /^\d*$/.test(attendancePointsInput)
+Line 134: : /^\d+$/.test(attendancePointsInput);
+Line 207: // Fetch and sync class-isolated attendance configs
+Line 209: const unsub = onSnapshot(collection(db, 'attendance_config'), (snapshot) => {
+Line 371: ? "تنبيه: أنت الآن تضيف مكافأة إضافية (Bonus) لهذا الطالب بجانب صفات الحضور"
+Line 425: const isAttendedToday = student?.attendance?.some(dateStr => {
+Line 434: showToast('تسجيل الحضور متاح فقط يوم الجمعة ⚠️', 'warning');
+Line 443: const attendanceDocId = `${id}_${todayStr}`;
+Line 444: const attendanceRef = doc(db, 'attendance', attendanceDocId);
+Line 455: const currentAttendance = currentStudentData.attendance || [];
+Line 460: const attendanceSnap = await getDoc(attendanceRef);
+Line 461: if (attendanceSnap.exists()) {
+Line 462: const data = attendanceSnap.data();
+Line 470: console.log("Could not load attendance details", e);
+Line 477: // 3. Write attendance doc
+Line 478: batch.set(attendanceRef, {
+Line 491: const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+Line 497: attendance: newAttendance,
+Line 502: const newStreak = (currentStudentData.attendanceStreak || 0) + 1;
+Line 507: studentUpdates.attendanceStreak = newStreak;
+Line 519: reason: `حضور يوم الجمعة (${servantName})`,
+Line 526: showToast('تم تسجيل الحضور وإضافة النقاط بنجاح ✅', 'success');
+Line 528: console.error("Error marking attendance:", error);
+Line 529: showToast(error.message || 'حدث خطأ أثناء تسجيل الحضور', 'error');
+Line 534: if (window.confirm("هل أنت متأكد من مسح هذا الحضور؟")) {
+Line 537: const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+Line 539: const currentAttendance = student.attendance || [];
+Line 542: // Get pointsAdded from attendance record before deleting it
+Line 543: const attendanceDocId = `${id}_${dateStr}`;
+Line 544: const attendanceRef = doc(db, 'attendance', attendanceDocId);
+Line 545: const attendanceSnap = await getDoc(attendanceRef);
+Line 547: if (attendanceSnap.exists()) {
+Line 548: pointsAdded = attendanceSnap.data().pointsAdded || 0;
+Line 552: attendance: newAttendance,
+Line 556: updates.attendanceStreak = calculateStreak(newAttendance);
+Line 560: await deleteDoc(attendanceRef);
+Line 567: if (data.reason && data.reason.includes('حضور')) {
+Line 576: console.error("Error removing attendance:", error);
+Line 985: value={attendancePointsInput}
+Line 1027: onClick={() => markAttendance(Number(attendancePointsInput))}
+Line 1035: {isAttendedToday ? 'تم تسجيل حضور اليوم' : 'تسجيل حضور سريع'}
+Line 1039: {(!student.attendance || student.attendance.length === 0) ? (
+Line 1042: [...student.attendance].reverse().map((d, i) => (
+Line 1080: const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+Line 1092: <span>{student.attendanceStreak || 0}</span>
+=== SEARCHING src/pages/ServantProfile.jsx ===
+Line 146: const [attendanceConfigs, setAttendanceConfigs] = useState({});
+Line 203: // Fetch and sync class-isolated attendance configs
+Line 205: const unsub = onSnapshot(collection(db, 'attendance_config'), (snapshot) => {
+Line 255: const streakAvailableClasses = useMemo(() => {
+Line 351: // CRITICAL EXCLUSION: Only count student for attendance if they existed on last Friday
+Line 355: const isAttended = st.attendance && st.attendance.some(d => d.startsWith(lastFriday));
+Line 612: onClick={() => navigate('/servant/attendance')}
+Line 732: <span>تنبيه: تسجيل حضور الخدمة والقداس والاجتماع متاح فقط يوم الجمعة. يمكنك تحديد خانة التحضير في أي وقت.</span>
+Line 743: {/* 1. حضور الخدمة */}
+Line 745: servant.weeklyFollowUp?.[selectedWeekKey]?.attendanceService
+Line 751: checked={!!servant.weeklyFollowUp?.[selectedWeekKey]?.attendanceService}
+Line 759: {/* 2. حضور القداس */}
+Line 761: servant.weeklyFollowUp?.[selectedWeekKey]?.attendanceLiturgy
+Line 767: checked={!!servant.weeklyFollowUp?.[selectedWeekKey]?.attendanceLiturgy}
+Line 775: {/* 3. حضور اجتماع الخدام */}
+Line 777: servant.weeklyFollowUp?.[selectedWeekKey]?.attendanceMeeting
+Line 783: checked={!!servant.weeklyFollowUp?.[selectedWeekKey]?.attendanceMeeting}
+=== SEARCHING src/pages/AdminServantProfile.jsx ===
+Line 195: if (data.attendanceService) service++;
+Line 196: if (data.attendanceLiturgy) liturgy++;
+Line 197: if (data.attendanceMeeting) meeting++;
+Line 751: {/* 1. حضور الخدمة */}
+Line 756: onClick={() => handleToggleWeeklyFollowUp(selectedWeekKey, 'attendanceService', !!fData.attendanceService)}
+Line 758: fData.attendanceService
+Line 763: {fData.attendanceService ? '✅ حضر' : '❌ غياب / لم يسجل'}
+Line 767: {/* 2. حضور القداس */}
+Line 772: onClick={() => handleToggleWeeklyFollowUp(selectedWeekKey, 'attendanceLiturgy', !!fData.attendanceLiturgy)}
+Line 774: fData.attendanceLiturgy
+Line 779: {fData.attendanceLiturgy ? '✅ حضر' : '❌ غياب / لم يسجل'}
+Line 783: {/* 3. حضور اجتماع الخدام */}
+Line 788: onClick={() => handleToggleWeeklyFollowUp(selectedWeekKey, 'attendanceMeeting', !!fData.attendanceMeeting)}
+Line 790: fData.attendanceMeeting
+Line 795: {fData.attendanceMeeting ? '✅ حضر' : '❌ غياب / لم يسجل'}
+Line 829: { label: 'حضور الخدمة', value: monthlyStats.service, color: 'from-blue-500 to-indigo-650' },
+Line 830: { label: 'حضور القداس', value: monthlyStats.liturgy, color: 'from-emerald-500 to-teal-650' },
+Line 831: { label: 'حضور اجتماع الخدام', value: monthlyStats.meeting, color: 'from-purple-500 to-violet-650' },
+=== SEARCHING src/pages/StudentDashboard.jsx ===
+Line 125: const docRef = doc(db, 'attendance_config', safeClassId);
+Line 590: سجل الحضور
+Line 593: {student.attendance?.length || 0} حضور
+Line 596: {student.attendance && student.attendance.length > 0 ? (
+Line 598: {student.attendance.slice(0, 8).map((date, index) => (
+Line 603: {student.attendance.length > 8 && (
+Line 605: +{student.attendance.length - 8} أخرى

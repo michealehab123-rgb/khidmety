@@ -1,0 +1,1 @@
+Line 205: function StudentRow({ student, addPoints, markAttendance, deleteStudent, openAttendanceModal, resetPassword, shortcuts, addShortcut, removeShortcut, consecutiveGiftEnabled, claimGift, isBonus = false, storeVisible = true }) {

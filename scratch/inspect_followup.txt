@@ -1,0 +1,151 @@
+Match 1 at position 5414:
+State([]);
+    const [servantsLoading, setServantsLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [selectedStage, setSelectedStage] = useState('');
+    const [selectedClass, setSelectedClass] = useState('');
+
+    const [activeTab, setActiveTab] = useState('current'); // 'current', 'requests', or 'followup'
+    const [selectedWeekKey, setSelectedWeekKey] = useState(() => weeksList[0].key);
+    const [reportType, setReportType] = useState('weekly'); // 'weekly' or 'monthly'
+    const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+    const [pendingServants, setPendingServants] = useState([]);
+    const [pendingLoading, setPendingLoading] = useState(true);
+    const [isRegOpen, setIsRegOpen] = useState(true);
+
+    const handleApprove = async (id) => {
+        try {
+       
+--------------------------------------------------
+Match 2 at position 25085:
+s);
+            const isAssigned = sClasses.includes(selectedClass);
+            if (!isManaged && !isAssigned) return false;
+        }
+
+        return true;
+    });
+
+    const currentFridaysOfMonth = useMemo(() => {
+        return getFridaysInMonth(selectedYear, selectedMonth);
+    }, [selectedYear, selectedMonth]);
+
+    const followUpFilteredServants = useMemo(() => {
+        if (activeTab !== 'followup') return [];
+
+        return filteredServants.filter(s => {
+            if (reportType === 'weekly') {
+                return isServantActiveInWeek(s, selectedWeekKey);
+            } else {
+                return currentFridaysOfMonth.some(fKey => isServantActiveInWeek(s, fKey));
+            }
+        });
+    }, [filteredServants, activeTab, reportType, selectedWeekKey, currentFridaysOfMonth]);
+
+    const followUpStats = useMemo(() => {
+        const totalServants = followUpFilteredServants.length;
+        if (totalServants === 0) {
+            return { service: 0, liturgy: 0, meeting
+--------------------------------------------------
+Match 3 at position 33275:
+لبات التسجيل والتحكم
+                    {pendingServants.length > 0 && (
+                        <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shrink-0">
+                            {pendingServants.length}
+                        </span>
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTab('followup')}
+                    className={`pb-4 text-base font-black transition-all border-b-2 px-2 cursor-pointer ${
+                        activeTab === 'followup'
+                        ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                        : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600'
+                    }`}
+                >
+                    متابعة خادمين الرب
+                </button>
+            </div>
+
+            {/* Stage and Class Filters */}
+            {(activeTab === 'current' || activeTab === 'foll
+--------------------------------------------------
+Match 4 at position 33433:
+x-2 py-0.5 rounded-full shrink-0">
+                            {pendingServants.length}
+                        </span>
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTab('followup')}
+                    className={`pb-4 text-base font-black transition-all border-b-2 px-2 cursor-pointer ${
+                        activeTab === 'followup'
+                        ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                        : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600'
+                    }`}
+                >
+                    متابعة خادمين الرب
+                </button>
+            </div>
+
+            {/* Stage and Class Filters */}
+            {(activeTab === 'current' || activeTab === 'followup') && (
+                <div className="flex flex-col md:flex-row gap-3 mb-8 items-center bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-20
+--------------------------------------------------
+Match 5 at position 33871:
+order-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                        : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600'
+                    }`}
+                >
+                    متابعة خادمين الرب
+                </button>
+            </div>
+
+            {/* Stage and Class Filters */}
+            {(activeTab === 'current' || activeTab === 'followup') && (
+                <div className="flex flex-col md:flex-row gap-3 mb-8 items-center bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors duration-300 w-full justify-between">
+                    <div className="flex flex-col sm:flex-row gap-3 items-center w-full md:w-auto">
+                        <span className="font-bold text-slate-600 dark:text-slate-400">تصفية حسب:</span>
+                        <div className="flex gap-3 flex-wrap">
+                            <select
+                                value={selectedStage}
+
+--------------------------------------------------
+Match 6 at position 37317:
+n value="">كل الفصول</option>}
+                                    {(authorizedClasses || []).map(cls => (
+                                        <option key={cls} value={cls}>{cls}</option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+                    </div>
+
+                    {activeTab === 'followup' && (
+                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center mt-4 md:mt-0 w-full md:w-auto justify-end">
+                            {/* Report Type Switcher */}
+                            <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => setReportType('weekly')}
+                                    className={`flex-1 s
+--------------------------------------------------
+Match 7 at position 65194:
+xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                            <Users size={64} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
+                            <p className="text-xl font-bold text-slate-400 dark:text-slate-500">لا يوجد خدام حالياً</p>
+                        </div>
+                    )}
+                </>
+            ) : activeTab === 'followup' ? (
+                <>
+                    {/* Stats Indicators */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        {/* Service Attendance Card */}
+                        <div className="bg-gradient-to-br from-blue-500 to-indigo-650 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+                            <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
+                                <ClipboardList size={120} />
+   
+--------------------------------------------------

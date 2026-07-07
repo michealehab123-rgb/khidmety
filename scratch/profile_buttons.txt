@@ -1,0 +1,42 @@
+646: 
+647: 
+648: 
+649: {roleNorm.includes('مرحله') ? (
+650: <button
+651: onClick={() => navigate('/admin/servants', { state: { prefilledStage: selectedStage || myStage, prefilledClass: selectedClass } })}
+652: className="bg-white dark:bg-[#1e293b] hover:bg-slate-50 dark:hover:bg-[#1e293b]/80 text-slate-805 dark:text-slate-200 p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 text-center transition-all group scale-100 hover:scale-[1.02] flex flex-col items-center justify-center gap-3 cursor-pointer"
+653: >
+654: <Users size={48} strokeWidth={2.5} className="mx-auto text-blue-600 dark:text-blue-400 group-hover:-translate-y-1 transition-transform" />
+655: <h3 className="text-xl font-black">إدارة خادمين الرب</h3>
+656: <p className="text-slate-505 dark:text-slate-400 text-sm font-bold">متابعة بيانات خادمين الرب والمسؤوليات</p>
+657: </button>
+658: ) : (
+659: <button
+660: onClick={() => navigate('/class-servants')}
+661: className="bg-white dark:bg-[#1e293b] hover:bg-slate-50 dark:hover:bg-[#1e293b]/80 text-slate-805 dark:text-slate-200 p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 text-center transition-all group scale-100 hover:scale-[1.02] flex flex-col items-center justify-center gap-3 cursor-pointer"
+662: >
+663: <Users size={48} strokeWidth={2.5} className="mx-auto text-blue-600 dark:text-blue-400 group-hover:-translate-y-1 transition-transform" />
+664: <h3 className="text-xl font-black">خادمين الرب في فصلي</h3>
+665: <p className="text-slate-505 dark:text-slate-400 text-sm font-bold">قائمة بيانات التواصل مع خدام نفس فصلي</p>
+--------------------------------------------------
+655: <h3 className="text-xl font-black">إدارة خادمين الرب</h3>
+656: <p className="text-slate-505 dark:text-slate-400 text-sm font-bold">متابعة بيانات خادمين الرب والمسؤوليات</p>
+657: </button>
+658: ) : (
+659: <button
+660: onClick={() => navigate('/class-servants')}
+661: className="bg-white dark:bg-[#1e293b] hover:bg-slate-50 dark:hover:bg-[#1e293b]/80 text-slate-805 dark:text-slate-200 p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 text-center transition-all group scale-100 hover:scale-[1.02] flex flex-col items-center justify-center gap-3 cursor-pointer"
+662: >
+663: <Users size={48} strokeWidth={2.5} className="mx-auto text-blue-600 dark:text-blue-400 group-hover:-translate-y-1 transition-transform" />
+664: <h3 className="text-xl font-black">خادمين الرب في فصلي</h3>
+665: <p className="text-slate-505 dark:text-slate-400 text-sm font-bold">قائمة بيانات التواصل مع خدام نفس فصلي</p>
+666: </button>
+667: )}
+668: 
+669: <button
+670: onClick={() => navigate('/admin/store')}
+671: className="bg-white dark:bg-[#1e293b] hover:bg-slate-50 dark:hover:bg-[#1e293b]/80 text-slate-805 dark:text-slate-200 p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 text-center transition-all group scale-100 hover:scale-[1.02] flex flex-col items-center justify-center gap-3 cursor-pointer"
+672: >
+673: <div className="bg-amber-100 dark:bg-amber-900/30 p-4 rounded-xl text-amber-600 dark:text-amber-400 transition-colors">
+674: <ShoppingBag size={48} strokeWidth={2.5} className="mx-auto group-hover:-translate-y-1 transition-transform" />
+--------------------------------------------------

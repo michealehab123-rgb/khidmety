@@ -1,0 +1,41 @@
+--- Occurrence at line 460 ---
+445:             alert('حدث خطأ أثناء تغيير كلمة المرور');
+446:         }
+447:     };
+448: 
+449:     if (loading) {
+450:         return (
+451:             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+452:                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
+453:                 <p className="text-lg font-medium text-slate-500 dark:text-slate-400">جاري التحميل...</p>
+454:             </div>
+455:         );
+456:     }
+457:     
+458:     if (!servant) return null;
+459: 
+460:     const stats = calculateStats();
+461:     const roleNorm = servant?.role ? normalizeArabic(servant.role) : '';
+462: 
+463:     const renderedServiceResponsibility = servant?.myClasses && servant.myClasses.length > 0
+464:         ? servant.myClasses.join('، ')
+465:         : (servant?.myClass || servant?.assignedClass || servant?.assignedStage || 'عام');
+466: 
+467:     return (
+468:         <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-[#0f172a] dark:text-slate-50 transition-colors duration-300 py-8" dir="rtl">
+469:             <div className="max-w-5xl mx-auto px-4">
+470:                 <header className="mb-8 text-right w-full flex flex-col gap-4 border-b border-slate-200 dark:border-slate-800 pb-5" dir="rtl">
+471:                     {/* Back Link */}
+472:                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+473:                         {/* Header Text */}
+474:                         <div>
+475:                             <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">أهلاً، خادم الرب {formData.name || (typeof servant.name === 'object' ? servant.name.name : servant.name)}</h1>
+476:                             <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">مرحباً بك في لوحة تحكم الخدمة - ({servant.role || 'خادم'})</p>
+477:                         </div>
+478: 
+479:                         {/* Interactive Dropdown Selectors */}
+480:                         <div className="flex items-center gap-3 shrink-0">
+481:                             <select
+482:                                 value={selectedStage}
+483:                                 onChange={(e) => {
+484:                                     const val = e.target.value;

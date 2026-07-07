@@ -1,0 +1,568 @@
+1189:             ) : activeTab === 'followup' ? (
+1190:                 <>
+1191:                     {/* Stats Indicators */}
+1192:                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+1193:                         {/* Service Attendance Card */}
+1194:                         <div className="bg-gradient-to-br from-blue-500 to-indigo-650 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+1195:                             <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
+1196:                                 <ClipboardList size={120} />
+1197:                             </div>
+1198:                             <p className="text-sm font-bold text-white mb-2">حضور الخدمة</p>
+1199:                             <h3 className="text-2xl font-black mb-4 flex items-baseline gap-2">
+1200:                                 <span>{followUpStats.service}%</span>
+1201:                                 {followUpStats.details?.service && (
+1202:                                     <span className="text-lg font-black text-white">({followUpStats.details.service})</span>
+1203:                                 )}
+1204:                             </h3>
+1205:                             <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
+1206:                                 <div className="bg-white h-full rounded-full transition-all duration-500" style={{ width: `${followUpStats.service}%` }}></div>
+1207:                             </div>
+1208:                         </div>
+1209:                         {/* Liturgy Attendance Card */}
+1210:                         <div className="bg-gradient-to-br from-emerald-500 to-teal-650 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+1211:                             <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
+1212:                                 <ClipboardList size={120} />
+1213:                             </div>
+1214:                             <p className="text-sm font-bold text-white mb-2">حضور القداس</p>
+1215:                             <h3 className="text-2xl font-black mb-4 flex items-baseline gap-2">
+1216:                                 <span>{followUpStats.liturgy}%</span>
+1217:                                 {followUpStats.details?.liturgy && (
+1218:                                     <span className="text-lg font-black text-white">({followUpStats.details.liturgy})</span>
+1219:                                 )}
+1220:                             </h3>
+1221:                             <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
+1222:                                 <div className="bg-white h-full rounded-full transition-all duration-500" style={{ width: `${followUpStats.liturgy}%` }}></div>
+1223:                             </div>
+1224:                         </div>
+1225:                         {/* Meeting Attendance Card */}
+1226:                         <div className="bg-gradient-to-br from-purple-500 to-violet-650 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+1227:                             <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
+1228:                                 <ClipboardList size={120} />
+1229:                             </div>
+1230:                             <p className="text-sm font-bold text-white mb-2">حضور اجتماع الخدام</p>
+1231:                             <h3 className="text-2xl font-black mb-4 flex items-baseline gap-2">
+1232:                                 <span>{followUpStats.meeting}%</span>
+1233:                                 {followUpStats.details?.meeting && (
+1234:                                     <span className="text-lg font-black text-white">({followUpStats.details.meeting})</span>
+1235:                                 )}
+1236:                             </h3>
+1237:                             <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
+1238:                                 <div className="bg-white h-full rounded-full transition-all duration-500" style={{ width: `${followUpStats.meeting}%` }}></div>
+1239:                             </div>
+1240:                         </div>
+1241:                         {/* Preparation Card */}
+1242:                         <div className="bg-gradient-to-br from-amber-500 to-orange-655 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+1243:                             <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
+1244:                                 <ClipboardList size={120} />
+1245:                             </div>
+1246:                             <p className="text-sm font-bold text-white mb-2">التحضير للدرس</p>
+1247:                             <h3 className="text-2xl font-black mb-4 flex items-baseline gap-2">
+1248:                                 <span>{followUpStats.prep}%</span>
+1249:                                 {followUpStats.details?.prep && (
+1250:                                     <span className="text-lg font-black text-white">({followUpStats.details.prep})</span>
+1251:                                 )}
+1252:                             </h3>
+1253:                             <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
+1254:                                 <div className="bg-white h-full rounded-full transition-all duration-500" style={{ width: `${followUpStats.prep}%` }}></div>
+1255:                             </div>
+1256:                         </div>
+1257:                     </div>
+1258: 
+1259:                     {/* Desktop View: Table */}
+1260:                     <div className="hidden md:block bg-white dark:bg-[#1e293b] rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden mb-10">
+1261:                         <table className="w-full text-right border-collapse">
+1262:                             <thead>
+1263:                                 <tr className="bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-white uppercase text-xs font-black tracking-wider leading-normal">
+1264:                                     <th className="py-5 px-8 border-b border-slate-100 dark:border-slate-800">الاسم والكود</th>
+1265:                                     <th className="py-5 px-8 border-b border-slate-100 dark:border-slate-800">الفصل المسئول عنه</th>
+1266:                                     <th className="py-5 px-6 border-b border-slate-100 dark:border-slate-800 text-center">حضور الخدمة</th>
+1267:                                     <th className="py-5 px-6 border-b border-slate-100 dark:border-slate-800 text-center">حضور القداس</th>
+1268:                                     <th className="py-5 px-6 border-b border-slate-100 dark:border-slate-800 text-center">حضور الاجتماع</th>
+1269:                                     <th className="py-5 px-6 border-b border-slate-100 dark:border-slate-800 text-center">التحضير للدرس</th>
+1270:                                 </tr>
+1271:                             </thead>
+1272:                             <tbody className="text-slate-600 dark:text-slate-300 text-sm">
+1273:                                 {followUpFilteredServants.map((s) => {
+1274:                                     const nameStr = typeof s.name === 'object' ? s.name.name : s.name;
+1275:                                     const initial = nameStr ? nameStr.charAt(0) : '?';
+1276:                                     
+1277:                                     if (reportType === 'weekly') {
+1278:                                         const fData = s.weeklyFollowUp?.[selectedWeekKey] || {};
+1279:                                         return (
+1280:                                             <tr key={s.id} className="border-b border-slate-50 dark:border-slate-800/80 hover:bg-blue-50/40 dark:hover:bg-blue-900/20 transition-colors">
+1281:                                                 <td className="py-5 px-8">
+1282:                                                     <div className="flex items-center gap-4">
+1283:                                                         <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-xl shadow-inner uppercase shrink-0">
+1284:                                                             {initial}
+1285:                                                         </div>
+1286:                                                         <div>
+1287:                                                             <Link to={`/admin/servant/${s.id}`} className="font-black text-slate-800 dark:text-slate-200 text-base hover:text-blue-600 dark:hover:text-blue-400 transition-colors block leading-tight">
+1288:                                                                 {nameStr} - {s.code || s.servantCode}
+1289:                                                             </Link>
+1290:                                                             {(s.assignedStage || s.grade) && <span className="text-xs text-slate-400 dark:text-slate-500 font-bold block mt-1">{s.assignedStage || s.grade}</span>}
+1291:                                                         </div>
+1292:                                                     </div>
+1293:                                                 </td>
+1294:                                                 <td className="py-5 px-8 font-black text-blue-600 dark:text-blue-400">
+1295:                                                     {s.myClasses && s.myClasses.length > 0
+1296:                                                         ? s.myClasses.join('، ')
+1297:                                                         : (s.assignedClass || s.assignment || '—')}
+1298:                                                 </td>
+1299:                                                 <td className="py-5 px-6 text-center">
+1300:                                                     <button
+1301:                                                         onClick={() => handleToggleWeeklyFollowUp(s.id, selectedWeekKey, 'attendanceService', !!fData.attendanceService)}
+1302:                                                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-all cursor-pointer border-0 ${
+1303:                                                             fData.attendanceService 
+1304:                                                             ? 'bg-emerald-100 hover:bg-emerald-250 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' 
+1305:                                                             : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-600'
+1306:                                                         }`}
+1307:                                                         title="تعديل حضور الخدمة"
+1308:                                                     >
+1309:                                                         {fData.attendanceService ? <Check size={18} strokeWidth={3} /> : <span className="text-lg leading-none font-bold">—</span>}
+1310:                                                     </button>
+1311:                                                 </td>
+1312:                                                 <td className="py-5 px-6 text-center">
+1313:                                                     <button
+1314:                                                         onClick={() => handleToggleWeeklyFollowUp(s.id, selectedWeekKey, 'attendanceLiturgy', !!fData.attendanceLiturgy)}
+1315:                                                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-all cursor-pointer border-0 ${
+1316:                                                             fData.attendanceLiturgy 
+1317:                                                             ? 'bg-emerald-100 hover:bg-emerald-250 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' 
+1318:                                                             : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-600'
+1319:                                                         }`}
+1320:                                                         title="تعديل حضور القداس"
+1321:                                                     >
+1322:                                                         {fData.attendanceLiturgy ? <Check size={18} strokeWidth={3} /> : <span className="text-lg leading-none font-bold">—</span>}
+1323:                                                     </button>
+1324:                                                 </td>
+1325:                                                 <td className="py-5 px-6 text-center">
+1326:                                                     <button
+1327:                                                         onClick={() => handleToggleWeeklyFollowUp(s.id, selectedWeekKey, 'attendanceMeeting', !!fData.attendanceMeeting)}
+1328:                                                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-all cursor-pointer border-0 ${
+1329:                                                             fData.attendanceMeeting 
+1330:                                                             ? 'bg-emerald-100 hover:bg-emerald-250 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400' 
+1331:                                                             : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-600'
+1332:                                                         }`}
+1333:                                                         title="تعديل حضور اجتماع الخدام"
+1334:                                                     >
+1335:                                                         {fData.attendanceMeeting ? <Check size={18} strokeWidth={3} /> : <span className="text-lg leading-none font-bold">—</span>}
+1336:                                                     </button>
+1337:                                                 </td>
+1338:                                                 <td className="py-5 px-6 text-center">
+1339:                                                     <button
+1340:                                                         onClick={() => handleToggleWeeklyFollowUp(s.id, selectedWeekKey, 'preparation', !!fData.preparation)}
+1341:                                                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-all cursor-pointer border-0 ${
+1342:                                                             fData.preparation 
+1343:                                                             ? 'bg-emerald-100 hover:bg-emerald-250 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 text-emerald-650 dark:text-emerald-400' 
+1344:                                                             : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-600'
+1345:                                                         }`}
+1346:                                                         title="تعديل تحضير الدرس"
+1347:                                                     >
+1348:                                                         {fData.preparation ? <Check size={18} strokeWidth={3} /> : <span className="text-lg leading-none font-bold">—</span>}
+1349:                                                     </button>
+1350:                                                 </td>
+1351:                                             </tr>
+1352:                                         );
+1353:                                     } else {
+1354:                                         const servantActiveFridays = currentFridaysOfMonth.filter(fKey => isServantActiveInWeek(s, fKey));
+1355:                                         const fCount = servantActiveFridays.length;
+1356:                                         let attService = 0;
+1357:                                         let attLiturgy = 0;
+1358:                                         let attMeeting = 0;
+1359:                                         let prepLesson = 0;
+1360: 
+1361:                                         servantActiveFridays.forEach(fKey => {
+1362:                                             const fData = s.weeklyFollowUp?.[fKey] || {};
+1363:                                             if (fData.attendanceService) attService++;
+1364:                                             if (fData.attendanceLiturgy) attLiturgy++;
+1365:                                             if (fData.attendanceMeeting) attMeeting++;
+1366:                                             if (fData.preparation) prepLesson++;
+1367:                                         });
+1368: 
+1369:                                         return (
+1370:                                             <tr key={s.id} className="border-b border-slate-50 dark:border-slate-800/80 hover:bg-blue-50/40 dark:hover:bg-blue-900/20 transition-colors">
+1371:                                                 <td className="py-5 px-8">
+1372:                                                     <div className="flex items-center gap-4">
+1373:                                                         <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-xl shadow-inner uppercase shrink-0">
+1374:                                                             {initial}
+1375:                                                         </div>
+1376:                                                         <div>
+1377:                                                             <Link to={`/admin/servant/${s.id}`} className="font-black text-slate-800 dark:text-slate-200 text-base hover:text-blue-600 dark:hover:text-blue-400 transition-colors block leading-tight">
+1378:                                                                 {nameStr} - {s.code || s.servantCode}
+1379:                                                             </Link>
+1380:                                                             {(s.assignedStage || s.grade) && <span className="text-xs text-slate-400 dark:text-slate-500 font-bold block mt-1">{s.assignedStage || s.grade}</span>}
+1381:                                                         </div>
+1382:                                                     </div>
+1383:                                                 </td>
+1384:                                                 <td className="py-5 px-8 font-black text-blue-600 dark:text-blue-400">
+1385:                                                     {s.myClasses && s.myClasses.length > 0
+1386:                                                         ? s.myClasses.join('، ')
+1387:                                                         : (s.assignedClass || s.assignment || '—')}
+1388:                                                 </td>
+1389:                                                 <td className="py-5 px-6 text-center font-bold">
+1390:                                                     <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-black ${
+1391:                                                         attService === fCount
+1392:                                                         ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400'
+1393:                                                         : attService >= fCount / 2
+1394:                                                         ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+1395:                                                         : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-450'
+1396:                                                     }`}>
+1397:                                                         {attService} / {fCount}
+1398:                                                     </span>
+1399:                                                 </td>
+1400:                                                 <td className="py-5 px-6 text-center font-bold">
+1401:                                                     <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-black ${
+1402:                                                         attLiturgy === fCount
+1403:                                                         ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400'
+1404:                                                         : attLiturgy >= fCount / 2
+1405:                                                         ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+1406:                                                         : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-450'
+1407:                                                     }`}>
+1408:                                                         {attLiturgy} / {fCount}
+1409:                                                     </span>
+1410:                                                 </td>
+1411:                                                 <td className="py-5 px-6 text-center font-bold">
+1412:                                                     <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-black ${
+1413:                                                         attMeeting === fCount
+1414:                                                         ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400'
+1415:                                                         : attMeeting >= fCount / 2
+1416:                                                         ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+1417:                                                         : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-450'
+1418:                                                     }`}>
+1419:                                                         {attMeeting} / {fCount}
+1420:                                                     </span>
+1421:                                                 </td>
+1422:                                                 <td className="py-5 px-6 text-center font-bold">
+1423:                                                     <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-black ${
+1424:                                                         prepLesson === fCount
+1425:                                                         ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400'
+1426:                                                         : prepLesson >= fCount / 2
+1427:                                                         ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+1428:                                                         : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-450'
+1429:                                                     }`}>
+1430:                                                         {prepLesson} / {fCount}
+1431:                                                     </span>
+1432:                                                 </td>
+1433:                                             </tr>
+1434:                                         );
+1435:                                     }
+1436:                                 })}
+1437:                             </tbody>
+1438:                         </table>
+1439:                     </div>
+1440: 
+1441:                     {/* Mobile View: Cards */}
+1442:                     <div className="md:hidden space-y-4 mb-8">
+1443:                         {followUpFilteredServants.map((s) => {
+1444:                             const nameStr = typeof s.name === 'object' ? s.name.name : s.name;
+1445:                             const initial = nameStr ? nameStr.charAt(0) : '?';
+1446:                             
+1447:                             if (reportType === 'weekly') {
+1448:                                 const fData = s.weeklyFollowUp?.[selectedWeekKey] || {};
+1449:                                 return (
+1450:                                     <div key={s.id} className="bg-white dark:bg-[#1e293b] p-5 rounded-2xl shadow-md border border-slate-100 dark:border-slate-800 space-y-4 group">
+1451:                                         <div className="flex items-center gap-3">
+1452:                                             <div className="h-12 w-12 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-xl shrink-0">
+1453:                                                 {initial}
+1454:                                             </div>
+1455:                                             <div>
+1456:                                                 <Link to={`/admin/servant/${s.id}`} className="font-black text-slate-800 dark:text-slate-200 text-lg leading-tight block hover:text-blue-600 dark:hover:text-blue-400">
+1457:                                                     {nameStr} - <span className="text-slate-500 dark:text-slate-400 text-sm">#{s.code || s.servantCode}</span>
+1458:                                                 </Link>
+1459:                                                 {(s.assignedStage || s.grade) && <span className="text-xs text-slate-400 dark:text-slate-500 font-bold block mt-1">{s.assignedStage || s.grade}</span>}
+1460:                                             </div>
+1461:                                         </div>
+1462: 
+1463:                                         <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-sm">
+1464:                                             <div>
+1465:                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">حضور الخدمة</p>
+1466:                                                 <button
+1467:                                                     onClick={() => handleToggleWeeklyFollowUp(s.id, selectedWeekKey, 'attendanceService', !!fData.attendanceService)}
+1468:                                                     className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm transition-all cursor-pointer border w-full ${
+1469:                                                         fData.attendanceService
+1470:                                                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700/40 dark:text-emerald-300'
+1471:                                                         : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-500'
+1472:                                                     }`}
+1473:                                                 >
+1474:                                                     <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+1475:                                                         fData.attendanceService
+1476:                                                         ? 'bg-emerald-500 text-white'
+1477:                                                         : 'bg-slate-200 dark:bg-slate-700'
+1478:                                                     }`}>
+1479:                                                         {fData.attendanceService && <Check size={11} strokeWidth={3.5} />}
+1480:                                                     </span>
+1481:                                                     <span>{fData.attendanceService ? 'حضر' : 'غائب'}</span>
+1482:                                                 </button>
+1483:                                             </div>
+1484:                                             <div>
+1485:                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">حضور القداس</p>
+1486:                                                 <button
+1487:                                                     onClick={() => handleToggleWeeklyFollowUp(s.id, selectedWeekKey, 'attendanceLiturgy', !!fData.attendanceLiturgy)}
+1488:                                                     className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm transition-all cursor-pointer border w-full ${
+1489:                                                         fData.attendanceLiturgy
+1490:                                                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700/40 dark:text-emerald-300'
+1491:                                                         : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-500'
+1492:                                                     }`}
+1493:                                                 >
+1494:                                                     <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+1495:                                                         fData.attendanceLiturgy
+1496:                                                         ? 'bg-emerald-500 text-white'
+1497:                                                         : 'bg-slate-200 dark:bg-slate-700'
+1498:                                                     }`}>
+1499:                                                         {fData.attendanceLiturgy && <Check size={11} strokeWidth={3.5} />}
+1500:                                                     </span>
+1501:                                                     <span>{fData.attendanceLiturgy ? 'حضر' : 'غائب'}</span>
+1502:                                                 </button>
+1503:                                             </div>
+1504:                                             <div>
+1505:                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">حضور اجتماع الخدام</p>
+1506:                                                 <button
+1507:                                                     onClick={() => handleToggleWeeklyFollowUp(s.id, selectedWeekKey, 'attendanceMeeting', !!fData.attendanceMeeting)}
+1508:                                                     className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm transition-all cursor-pointer border w-full ${
+1509:                                                         fData.attendanceMeeting
+1510:                                                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700/40 dark:text-emerald-300'
+1511:                                                         : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-500'
+1512:                                                     }`}
+1513:                                                 >
+1514:                                                     <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+1515:                                                         fData.attendanceMeeting
+1516:                                                         ? 'bg-emerald-500 text-white'
+1517:                                                         : 'bg-slate-200 dark:bg-slate-700'
+1518:                                                     }`}>
+1519:                                                         {fData.attendanceMeeting && <Check size={11} strokeWidth={3.5} />}
+1520:                                                     </span>
+1521:                                                     <span>{fData.attendanceMeeting ? 'حضر' : 'غائب'}</span>
+1522:                                                 </button>
+1523:                                             </div>
+1524:                                             <div>
+1525:                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1.5">التحضير</p>
+1526:                                                 <button
+1527:                                                     onClick={() => handleToggleWeeklyFollowUp(s.id, selectedWeekKey, 'preparation', !!fData.preparation)}
+1528:                                                     className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm transition-all cursor-pointer border w-full ${
+1529:                                                         fData.preparation
+1530:                                                         ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700/40 dark:text-emerald-300'
+1531:                                                         : 'bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-500'
+1532:                                                     }`}
+1533:                                                 >
+1534:                                                     <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${
+1535:                                                         fData.preparation
+1536:                                                         ? 'bg-emerald-500 text-white'
+1537:                                                         : 'bg-slate-200 dark:bg-slate-700'
+1538:                                                     }`}>
+1539:                                                         {fData.preparation && <Check size={11} strokeWidth={3.5} />}
+1540:                                                     </span>
+1541:                                                     <span>{fData.preparation ? 'حضر' : 'غائب'}</span>
+1542:                                                 </button>
+1543:                                             </div>
+1544:                                         </div>
+1545:                                     </div>
+1546:                                 );
+1547:                             } else {
+1548:                                 const servantActiveFridays = currentFridaysOfMonth.filter(fKey => isServantActiveInWeek(s, fKey));
+1549:                                 const fCount = servantActiveFridays.length;
+1550:                                 let attService = 0;
+1551:                                 let attLiturgy = 0;
+1552:                                 let attMeeting = 0;
+1553:                                 let prepLesson = 0;
+1554: 
+1555:                                 servantActiveFridays.forEach(fKey => {
+1556:                                     const fData = s.weeklyFollowUp?.[fKey] || {};
+1557:                                     if (fData.attendanceService) attService++;
+1558:                                     if (fData.attendanceLiturgy) attLiturgy++;
+1559:                                     if (fData.attendanceMeeting) attMeeting++;
+1560:                                     if (fData.preparation) prepLesson++;
+1561:                                 });
+1562: 
+1563:                                 return (
+1564:                                     <div key={s.id} className="bg-white dark:bg-[#1e293b] p-5 rounded-2xl shadow-md border border-slate-100 dark:border-slate-800 space-y-4 group">
+1565:                                         <div className="flex items-center gap-3">
+1566:                                             <div className="h-12 w-12 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-xl shrink-0">
+1567:                                                 {initial}
+1568:                                             </div>
+1569:                                             <div>
+1570:                                                 <Link to={`/admin/servant/${s.id}`} className="font-black text-slate-800 dark:text-slate-200 text-lg leading-tight block hover:text-blue-600 dark:hover:text-blue-400">
+1571:                                                     {nameStr} - <span className="text-slate-500 dark:text-slate-400 text-sm">#{s.code || s.servantCode}</span>
+1572:                                                 </Link>
+1573:                                                 {(s.assignedStage || s.grade) && <span className="text-xs text-slate-400 dark:text-slate-500 font-bold block mt-1">{s.assignedStage || s.grade}</span>}
+1574:                                             </div>
+1575:                                         </div>
+1576: 
+1577:                                         <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-50 dark:border-slate-800 text-sm">
+1578:                                             <div>
+1579:                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">حضور الخدمة</p>
+1580:                                                 <p className="text-sm font-black text-slate-700 dark:text-slate-200">
+1581:                                                     {attService} من {fCount} أسابيع
+1582:                                                 </p>
+1583:                                             </div>
+1584:                                             <div>
+1585:                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">حضور القداس</p>
+1586:                                                 <p className="text-sm font-black text-slate-700 dark:text-slate-200">
+1587:                                                     {attLiturgy} من {fCount} أسابيع
+1588:                                                 </p>
+1589:                                             </div>
+1590:                                             <div>
+1591:                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">حضور اجتماع الخدام</p>
+1592:                                                 <p className="text-sm font-black text-slate-700 dark:text-slate-200">
+1593:                                                     {attMeeting} من {fCount} أسابيع
+1594:                                                 </p>
+1595:                                             </div>
+1596:                                             <div>
+1597:                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">التحضير</p>
+1598:                                                 <p className="text-sm font-black text-slate-700 dark:text-slate-200">
+1599:                                                     {prepLesson} من {fCount} أسابيع
+1600:                                                 </p>
+1601:                                             </div>
+1602:                                         </div>
+1603:                                     </div>
+1604:                                 );
+1605:                             }
+1606:                         })}
+1607:                     </div>
+1608: 
+1609:                     {followUpFilteredServants.length === 0 && !servantsLoading && (
+1610:                         <div className="w-full py-20 text-center bg-white dark:bg-[#1e293b] rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+1611:                             <Users size={64} className="mx-auto text-slate-200 dark:text-slate-700 mb-4" />
+1612:                             <p className="text-xl font-bold text-slate-400 dark:text-slate-500">لا يوجد خدام حالياً</p>
+1613:                         </div>
+1614:                     )}
+1615:                 </>
+1616:             ) : (
+1617:                 <>
+1618:                     {/* Registration Toggle Switch */}
+1619:                     <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors duration-300">
+1620:                         <div className="space-y-1">
+1621:                             <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+1622:                                 {isRegOpen ? '🔓 التسجيل مفتوح حالياً' : '🔒 التسجيل مغلق حالياً'}
+1623:                             </h3>
+1624:                             <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">
+1625:                                 عند إغلاق التسجيل، لن يتمكن الخدام الجدد من إنشاء حسابات عبر الرابط الخارجي.
+1626:                             </p>
+1627:                         </div>
+1628:                         <button
+1629:                             onClick={handleToggleRegistration}
+1630:                             className={`px-6 py-3 rounded-xl font-bold text-sm md:text-base transition-all shadow-md cursor-pointer flex items-center gap-2 ${
+1631:                                 isRegOpen
+1632:                                 ? 'bg-amber-500 hover:bg-amber-600 text-white'
+1633:                                 : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 dark:shadow-none'
+1634:                             }`}
+1635:                         >
+1636:                             {isRegOpen ? 'إغلاق التسجيل 🔒' : 'فتح التسجيل 🔓'}
+1637:                         </button>
+1638:                     </div>
+1639: 
+1640:                     {/* Pending Requests List */}
+1641:                     <div>
+1642:                         <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
+1643:                             <span>طلبات التسجيل المعلقة</span>
+1644:                             <span className="text-sm bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 px-2.5 py-1 rounded-lg font-bold">
+1645:                                 {pendingServants.length} طلب
+1646:                             </span>
+1647:                         </h3>
+1648: 
+1649:                         {pendingLoading ? (
+1650:                             <div className="flex flex-col items-center justify-center py-12 gap-4">
+1651:                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+1652:                                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">جاري تحميل الطلبات...</p>
+1653:                             </div>
+1654:                         ) : pendingServants.length === 0 ? (
+1655:                             <div className="w-full py-16 text-center bg-white dark:bg-[#1e293b] rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+1656:                                 <span className="text-4xl block mb-3">🎉</span>
+1657:                                 <p className="text-lg font-bold text-slate-400 dark:text-slate-500">لا توجد طلبات تسجيل معلقة حالياً</p>
+1658:                             </div>
+1659:                         ) : (
+1660:                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+1661:                                 {pendingServants.map((req) => (
+1662:                                     <div key={req.id} className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-md flex flex-col justify-between gap-6 transition-all hover:shadow-lg">
+1663:                                         <div className="space-y-4">
+1664:                                             <div className="flex items-center justify-between gap-3">
+1665:                                                 <div className="flex items-center gap-3">
+1666:                                                     <div className="h-12 w-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl font-black uppercase shrink-0">
+1667:                                                         {req.name ? req.name.charAt(0) : '?'}
+1668:                                                     </div>
+1669:                                                     <div>
+1670:                                                         <h4 className="font-black text-slate-800 dark:text-slate-100 text-lg leading-tight">{req.name}</h4>
+1671:                                                         <span className="text-xs text-slate-400 dark:text-slate-500 font-bold">تاريخ الطلب: {req.createdAt ? new Date(req.createdAt).toLocaleDateString('ar-EG') : '—'}</span>
+1672:                                                     </div>
+1673:                                                 </div>
+1674:                                                 <RoleBadge role={req.role} />
+1675:                                             </div>
+1676: 
+1677:                                             <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-850">
+1678:                                                 <div>
+1679:                                                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1">المرحلة المطلوبة</p>
+1680:                                                     <p className="font-black text-slate-700 dark:text-slate-200">{req.assignedStage || '—'}</p>
+1681:                                                 </div>
+1682:                                                 <div>
+1683:                                                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1">رقم التليفون</p>
+1684:                                                     <p className="font-bold text-slate-700 dark:text-slate-200" dir="ltr">{req.phone || '—'}</p>
+1685:                                                 </div>
+1686:                                                 <div className="col-span-2">
+1687:                                                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1">الفصول المطلوبة</p>
+1688:                                                     <p className="font-black text-blue-600 dark:text-blue-400">
+1689:                                                         {req.role === 'امين مرحله'
+1690:                                                             ? (req.managedClasses && req.managedClasses.length > 0 ? req.managedClasses.join('، ') : '—')
+1691:                                                             : (req.myClasses && req.myClasses.length > 0 ? req.myClasses.join('، ') : '—')
+1692:                                                         }
+1693:                                                     </p>
+1694:                                                 </div>
+1695:                                                 <div className="col-span-2">
+1696:                                                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1">الكود المقترح / الإيميل</p>
+1697:                                                     <p className="font-bold text-slate-600 dark:text-slate-350">{req.code} / {req.email}</p>
+1698:                                                 </div>
+1699:                                             </div>
+1700:                                         </div>
+1701: 
+1702:                                         <div className="flex gap-3">
+1703:                                             <button
+1704:                                                 onClick={() => handleApprove(req.id)}
+1705:                                                 className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-md active:scale-95 cursor-pointer text-center text-sm md:text-base font-bold"
+1706:                                             >
+1707:                                                 قبول ✅
+1708:                                             </button>
+1709:                                             <button
+1710:                                                 onClick={() => handleReject(req.id)}
+1711:                                                 className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition-all shadow-md active:scale-95 cursor-pointer text-center text-sm md:text-base font-bold"
+1712:                                             >
+1713:                                                 رفض ❌
+1714:                                             </button>
+1715:                                         </div>
+1716:                                     </div>
+1717:                                 ))}
+1718:                             </div>
+1719:                         )}
+1720:                     </div>
+1721:                 </>
+1722:             )}
+1723:         </div>
+1724:     );
+1725: }
+1726: 
+1727: // Helper Components
+1728: const FormInput = ({ icon, label, className = '', ...props }) => (
+1729:     <div className="space-y-2">
+1730:         <label className="text-sm font-bold text-slate-600 dark:text-slate-400 mr-1 italic">{label}</label>
+1731:         <div className="relative">
+1732:             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-400">
+1733:                 {icon}
+1734:             </div>
+1735:             <input
+1736:                 {...props}
+1737:                 className={`w-full pr-10 pl-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900 outline-none transition-all font-medium text-slate-800 dark:text-slate-200 ${className}`}
+1738:             />
+1739:         </div>
+1740:     </div>
+1741: );
+1742: 
+1743: const RoleBadge = ({ role }) => {
+1744:     const norm = role ? role.replace(/[أإآا]/g, 'ا').replace(/[ىي]/g, 'ي').replace(/[ةه]/g, 'ه').trim() : '';
+1745:     const colors = {
+1746:         'امين مرحله': 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-900/50',
+1747:         'امين فصل': 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-955/30 dark:text-orange-400 dark:border-orange-900/50',
+1748:         'default': 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-900/50'
+1749:     };
+1750:     const style = colors[norm] || colors.default;
+1751:     return (
+1752:         <span className={`py-1 px-3 rounded-lg text-xs font-black border ${style} shadow-sm inline-block`}>
+1753:             {role}
+1754:         </span>
+1755:     );
+1756: };

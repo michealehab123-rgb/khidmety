@@ -1,0 +1,322 @@
+Match 1 at position 65293:
+ch (error) {
+
+
+
+            console.error("Error updating points:", error);
+
+
+
+            showToast('حدث خطأ أثناء تعديل النقاط ❌', 'error');
+
+
+
+        }
+
+
+
+    };
+
+
+
+
+
+
+
+    const markAttendance = async (id, pointsToAdd = 5) => {
+
+
+
+        const student = students.find(s => s.id === id);
+
+
+
+        if (!student) return;
+
+
+
+
+
+
+
+        if (new Date().getDay() !== 5) {
+
+
+
+            showToast('تسجيل الحضور متاح فقط يوم الجمعة ⚠️', 'warning');
+
+
+
+            return;
+
+
+
+        }
+
+
+
+
+
+
+
+        const today = new Date();
+
+
+
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+
+
+
+
+
+
+        try {
+
+
+
+            const studentRef = doc(db, 'students', id);
+
+
+
+            const attendanceDocId = `${student.id}_${todayStr}`;
+
+
+
+            const attendanceRef = doc(db, 'attendance', attendanceDocId);
+
+
+
+            const servantName = servant?.name || 'الخادم';
+
+
+
+
+
+
+
+            // 1. Read student d
+--------------------------------------------------
+Match 2 at position 69611:
+set(historyRef, {
+
+
+
+                studentId: student.id,
+
+
+
+                amount: Number(pointsToAdd),
+
+
+
+                points: Number(pointsToAdd),
+
+
+
+                reason: `حضور يوم الجمعة (${servantName})`,
+
+
+
+                createdAt: new Date()
+
+
+
+            });
+
+
+
+
+
+
+
+            // Commit batch (works offline)
+
+
+
+            await batch.commit();
+
+
+
+
+
+
+
+            showToast('تم تسجيل الحضور وإضافة النقاط بنجاح ✅', 'success');
+
+
+
+        } catch (error) {
+
+
+
+            console.error("Error marking attendance:", error);
+
+
+
+            showToast(error.message || 'حدث خطأ أثناء تسجيل الحضور', 'error');
+
+
+
+        }
+
+
+
+    };
+
+
+
+    const markLiturgy = async (id, isChecked) => {
+
+        const student = students.find(s => s.id === id);
+
+        if (!student) return;
+
+
+
+        if (new Date().getDay() !== 5) {
+
+            showToast('تسجيل حضور القداس متاح فقط يوم الجمعة ⚠️', 'warning');
+
+            return;
+
+        }
+
+
+
+        const today = new Date();
+
+        const t
+--------------------------------------------------
+Match 3 at position 69812:
+${servantName})`,
+
+
+
+                createdAt: new Date()
+
+
+
+            });
+
+
+
+
+
+
+
+            // Commit batch (works offline)
+
+
+
+            await batch.commit();
+
+
+
+
+
+
+
+            showToast('تم تسجيل الحضور وإضافة النقاط بنجاح ✅', 'success');
+
+
+
+        } catch (error) {
+
+
+
+            console.error("Error marking attendance:", error);
+
+
+
+            showToast(error.message || 'حدث خطأ أثناء تسجيل الحضور', 'error');
+
+
+
+        }
+
+
+
+    };
+
+
+
+    const markLiturgy = async (id, isChecked) => {
+
+        const student = students.find(s => s.id === id);
+
+        if (!student) return;
+
+
+
+        if (new Date().getDay() !== 5) {
+
+            showToast('تسجيل حضور القداس متاح فقط يوم الجمعة ⚠️', 'warning');
+
+            return;
+
+        }
+
+
+
+        const today = new Date();
+
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+
+
+        try {
+
+            const studentRef = doc(db, 'students', id)
+--------------------------------------------------
+Match 4 at position 92026:
+nClick={() => setActiveTab('attendance')}
+
+
+
+                    className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'attendance' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+
+
+
+                >
+
+
+
+                    تسجيل الحضور
+
+
+
+                </button>
+
+
+
+                <button
+
+
+
+                    onClick={() => setActiveTab('bonus')}
+
+
+
+                    className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'bonus' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+
+
+
+                >
+
+
+
+                    بونص
+
+
+
+                </button>
+
+
+
+                <button
+
+
+
+                    onClick={() => setActiveTab('dire
+--------------------------------------------------

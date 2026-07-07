@@ -1,0 +1,314 @@
+=== SEARCHING src/pages/ServantDashboard.jsx ===
+Line 984: if (activeTab === 'directory') {
+    969:         });
+    970:         return () => unsub();
+    971:     }, []);
+    972: 
+    973:     useEffect(() => {
+    974:         const unsub = onSnapshot(collection(db, 'store_config'), (snapshot) => {
+    975:             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    976:             setStoreConfigs(list);
+    977:         });
+    978:         return () => unsub();
+    979:     }, []);
+    980: 
+    981:     useEffect(() => {
+    982:         const originalTitle = document.title;
+    983:         const handleBeforePrint = () => {
+--> 984:             if (activeTab === 'directory') {
+    985:                 const today = new Date();
+    986:                 const dateStr = `${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}`;
+    987:                 const stage = selectedStageTab2 || 'الكل';
+    988:                 const cls = selectedClassTab2 || 'الكل';
+    989:                 document.title = `كشف المخدومين - مرحلة ${stage} - فصل ${cls} - ${dateStr}`;
+    990:             }
+    991:         };
+    992:         const handleAfterPrint = () => {
+    993:             document.title = originalTitle;
+    994:         };
+    995: 
+    996:         window.addEventListener('beforeprint', handleBeforePrint);
+    997:         window.addEventListener('afterprint', handleAfterPrint);
+    998:         return () => {
+----------------------------------------
+Line 1492: const renderPrintCardsTab = () => {
+    1477:         if (isAllPrintSelected) {
+    1478:             const idsToRemove = sortedStudentsPrint.map(s => s.id);
+    1479:             setSelectedStudentsPrint(prev => prev.filter(id => !idsToRemove.includes(id)));
+    1480:         } else {
+    1481:             const idsToAdd = sortedStudentsPrint.map(s => s.id);
+    1482:             setSelectedStudentsPrint(prev => Array.from(new Set([...prev, ...idsToAdd])));
+    1483:         }
+    1484:     };
+    1485: 
+    1486:     const handleToggleSelectStudentPrint = (id) => {
+    1487:         setSelectedStudentsPrint(prev => 
+    1488:             prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    1489:         );
+    1490:     };
+    1491: 
+--> 1492:     const renderPrintCardsTab = () => {
+    1493:         return (
+    1494:             <div className="space-y-6 animate-in fade-in duration-300">
+    1495:                 <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+    1496:                     <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-grow max-w-5xl">
+    1497:                         <select
+    1498:                             value={selectedStagePrint}
+    1499:                             onChange={e => { setSelectedStagePrint(e.target.value); setSelectedClassPrint('الكل'); setSelectedStudentsPrint([]); }}
+    1500:                             disabled={isStageServant || isClassServant}
+    1501:                             className="w-full sm:w-44 p-3 bg-white dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+    1502:                         >
+    1503:                             <option value="الكل">كل المراحل</option>
+    1504:                             {Object.keys(STAGE_CLASS_MAP).map(stage => (
+    1505:                                 <option key={stage} value={stage}>{stage}</option>
+    1506:                             ))}
+----------------------------------------
+Line 1653: className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer $
+    1638:             <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl mb-8 gap-1 w-full max-w-xl border border-slate-200/50 dark:border-slate-800">
+    1639:                 <button
+    1640:                     onClick={() => setActiveTab('attendance')}
+    1641:                     className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'attendance' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1642:                 >
+    1643:                     تسجيل الحضور
+    1644:                 </button>
+    1645:                 <button
+    1646:                     onClick={() => setActiveTab('bonus')}
+    1647:                     className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'bonus' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1648:                 >
+    1649:                     بونص
+    1650:                 </button>
+    1651:                 <button
+    1652:                     onClick={() => setActiveTab('directory')}
+--> 1653:                     className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'directory' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1654:                 >
+    1655:                     كشوف المخدومين
+    1656:                 </button>
+    1657:                 <button
+    1658:                     onClick={() => setActiveTab('print_cards')}
+    1659:                     className={`flex-1 py-3 px-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${activeTab === 'print_cards' ? 'bg-white dark:bg-[#1e293b] text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+    1660:                 >
+    1661:                     طباعة الكارنيهات 💳
+    1662:                 </button>
+    1663:             </div>
+    1664: 
+    1665:             {activeTab === 'attendance' && (
+    1666:                 <>
+    1667:                     <div className="relative mb-8">
+----------------------------------------
+Line 2050: {activeTab === 'print_cards' && renderPrintCardsTab()}
+    2035:                                         </td>
+    2036:                                         <td className="p-4 text-center font-bold text-emerald-600 dark:text-emerald-400">{student.attendance ? student.attendance.length : 0} جمعة</td>
+    2037:                                     </tr>
+    2038:                                 ))}
+    2039:                                 {filteredStudentsTab2.length === 0 && (
+    2040:                                     <tr>
+    2041:                                         <td colSpan="8" className="p-8 text-center text-slate-450 dark:text-slate-500 font-bold">لا توجد نتائج مطابقة للبحث في نطاق مرحلتك المعزولة</td>
+    2042:                                     </tr>
+    2043:                                 )}
+    2044:                             </tbody>
+    2045:                         </table>
+    2046:                     </div>
+    2047:                 </div>
+    2048:             )}
+    2049: 
+--> 2050:             {activeTab === 'print_cards' && renderPrintCardsTab()}
+    2051: 
+    2052:             {/* Attendance Modal */}
+    2053:             {attendanceModalStudentId && (
+    2054:                 <div className="fixed inset-0 z-[200] bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    2055:                      <div className="bg-white dark:bg-[#1e293b] rounded-3xl w-full max-w-md shadow-2xl p-6 md:p-8 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200 transition-colors duration-300">
+    2056:                         <div className="flex justify-between items-start mb-6">
+    2057:                             <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100">سجل الحضور</h3>
+    2058:                             <button onClick={() => setAttendanceModalStudentId(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-xl transition-colors text-slate-400 dark:text-slate-555"><X size={28} /></button>
+    2059:                         </div>
+    2060:                         {(() => {
+    2061:                             const s = students.find(x => x.id === attendanceModalStudentId);
+    2062:                             if (!s || !s.attendance || s.attendance.length === 0) return (
+    2063:                                 <div className="py-10 text-center space-y-3">
+    2064:                                     <CalendarDays size={48} className="mx-auto text-slate-200 dark:text-slate-700" />
+----------------------------------------
+Line 2107: <div className="bulk-print-container hidden">
+    2092:                     {toast.type === 'error' ? (
+    2093:                         <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+    2094:                     ) : toast.type === 'warning' ? (
+    2095:                         <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+    2096:                     ) : (
+    2097:                         <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+    2098:                     )}
+    2099:                     <span className="font-bold text-sm leading-relaxed">{toast.message}</span>
+    2100:                     <button onClick={() => setToast(prev => ({ ...prev, show: false }))} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-2">
+    2101:                         <X size={16} />
+    2102:                     </button>
+    2103:                 </div>
+    2104:             )}
+    2105: 
+    2106:             {/* Bulk Print Container */}
+--> 2107:             <div className="bulk-print-container hidden">
+    2108:                 {students.filter(s => selectedStudentsPrint.includes(s.id)).map(student => (
+    2109:                     <div key={student.id} className="bulk-card-page">
+    2110:                         <div className="bulk-card-inner">
+    2111:                             {/* Decorative background vectors */}
+    2112:                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(30,58,138,0.3),transparent_70%)] pointer-events-none z-0" />
+    2113:                             <div className="absolute -right-[10%] -top-[10%] w-[35cqw] h-[35cqw] bg-amber-500/5 rounded-full blur-[3cqw] pointer-events-none z-0" />
+    2114:                             <div className="absolute -left-[10%] -bottom-[10%] w-[45cqw] h-[45cqw] bg-blue-500/5 rounded-full blur-[4cqw] pointer-events-none z-0" />
+    2115:                             
+    2116:                             {/* Card Body */}
+    2117:                             <div className="flex justify-between items-stretch flex-1 z-10 gap-[3cqw] min-h-0">
+    2118:                                 {/* Right side visually: Photo & Personal info */}
+    2119:                                 <div className="flex gap-[3cqw] items-center w-1/2 min-w-0">
+    2120:                                     {/* Student Photo */}
+    2121:                                     <div className="w-[18cqw] h-[22cqw] rounded-[2cqw] border-2 border-amber-500/30 overflow-hidden bg-slate-900 shadow-md shrink-0 flex items-center justify-center relative">
+----------------------------------------
+Line 2197: body.printing-bulk #root *:not(.bulk-print-container):not(.bulk-print-container *) {
+    2182:                     </div>
+    2183:                 ))}
+    2184:             </div>
+    2185: 
+    2186:             {/* Bulk Print Styles */}
+    2187:             {isPrintingBulk && (
+    2188:                 <style>{`
+    2189:                     @media print {
+    2190:                         @page {
+    2191:                             size: 8.5cm 5.4cm;
+    2192:                             margin: 0;
+    2193:                         }
+    2194: 
+    2195:                         /* For bulk printing, neutralize all intermediate layouts */
+    2196:                         body.printing-bulk #root, 
+--> 2197:                         body.printing-bulk #root *:not(.bulk-print-container):not(.bulk-print-container *) {
+    2198:                             position: static !important;
+    2199:                             transform: none !important;
+    2200:                             margin: 0 !important;
+    2201:                             padding: 0 !important;
+    2202:                             height: 0 !important;
+    2203:                             width: 0 !important;
+    2204:                             overflow: visible !important;
+    2205:                             box-shadow: none !important;
+    2206:                             filter: none !important;
+    2207:                             backdrop-filter: none !important;
+    2208:                         }
+    2209:                         
+    2210:                         body.printing-bulk {
+    2211:                             width: 8.5cm !important;
+----------------------------------------
+Line 2225: body.printing-bulk .bulk-print-container,
+    2210:                         body.printing-bulk {
+    2211:                             width: 8.5cm !important;
+    2212:                             height: 5.4cm !important;
+    2213:                             overflow: hidden !important;
+    2214:                             background-color: transparent !important;
+    2215:                             -webkit-print-color-adjust: exact !important;
+    2216:                             print-color-adjust: exact !important;
+    2217:                             margin: 0 !important;
+    2218:                             padding: 0 !important;
+    2219:                         }
+    2220:                         
+    2221:                         body.printing-bulk * {
+    2222:                             visibility: hidden !important;
+    2223:                         }
+    2224:                         
+--> 2225:                         body.printing-bulk .bulk-print-container,
+    2226:                         body.printing-bulk .bulk-print-container * {
+    2227:                             visibility: visible !important;
+    2228:                         }
+    2229:                         
+    2230:                         body.printing-bulk .bulk-print-container {
+    2231:                             display: block !important;
+    2232:                             position: absolute !important;
+    2233:                             left: 0 !important;
+    2234:                             top: 0 !important;
+    2235:                             width: 8.5cm !important;
+    2236:                             height: auto !important;
+    2237:                         }
+    2238:                         
+    2239:                         body.printing-bulk .bulk-card-page {
+----------------------------------------
+Line 2226: body.printing-bulk .bulk-print-container * {
+    2211:                             width: 8.5cm !important;
+    2212:                             height: 5.4cm !important;
+    2213:                             overflow: hidden !important;
+    2214:                             background-color: transparent !important;
+    2215:                             -webkit-print-color-adjust: exact !important;
+    2216:                             print-color-adjust: exact !important;
+    2217:                             margin: 0 !important;
+    2218:                             padding: 0 !important;
+    2219:                         }
+    2220:                         
+    2221:                         body.printing-bulk * {
+    2222:                             visibility: hidden !important;
+    2223:                         }
+    2224:                         
+    2225:                         body.printing-bulk .bulk-print-container,
+--> 2226:                         body.printing-bulk .bulk-print-container * {
+    2227:                             visibility: visible !important;
+    2228:                         }
+    2229:                         
+    2230:                         body.printing-bulk .bulk-print-container {
+    2231:                             display: block !important;
+    2232:                             position: absolute !important;
+    2233:                             left: 0 !important;
+    2234:                             top: 0 !important;
+    2235:                             width: 8.5cm !important;
+    2236:                             height: auto !important;
+    2237:                         }
+    2238:                         
+    2239:                         body.printing-bulk .bulk-card-page {
+    2240:                             display: block !important;
+----------------------------------------
+Line 2230: body.printing-bulk .bulk-print-container {
+    2215:                             -webkit-print-color-adjust: exact !important;
+    2216:                             print-color-adjust: exact !important;
+    2217:                             margin: 0 !important;
+    2218:                             padding: 0 !important;
+    2219:                         }
+    2220:                         
+    2221:                         body.printing-bulk * {
+    2222:                             visibility: hidden !important;
+    2223:                         }
+    2224:                         
+    2225:                         body.printing-bulk .bulk-print-container,
+    2226:                         body.printing-bulk .bulk-print-container * {
+    2227:                             visibility: visible !important;
+    2228:                         }
+    2229:                         
+--> 2230:                         body.printing-bulk .bulk-print-container {
+    2231:                             display: block !important;
+    2232:                             position: absolute !important;
+    2233:                             left: 0 !important;
+    2234:                             top: 0 !important;
+    2235:                             width: 8.5cm !important;
+    2236:                             height: auto !important;
+    2237:                         }
+    2238:                         
+    2239:                         body.printing-bulk .bulk-card-page {
+    2240:                             display: block !important;
+    2241:                             width: 8.5cm !important;
+    2242:                             height: 5.4cm !important;
+    2243:                             page-break-after: always !important;
+    2244:                             break-after: page !important;
+----------------------------------------
+Line 2282: .bulk-print-container {
+    2267:                             container-name: card;
+    2268:                         }
+    2269:                         
+    2270:                         /* Fix transparent clip text gradient bug in printing */
+    2271:                         body.printing-bulk .bulk-card-inner h2 {
+    2272:                             background: none !important;
+    2273:                             -webkit-background-clip: unset !important;
+    2274:                             background-clip: unset !important;
+    2275:                             -webkit-text-fill-color: #fbbf24 !important;
+    2276:                             color: #fbbf24 !important;
+    2277:                         }
+    2278:                     }
+    2279:                 `}</style>
+    2280:             )}
+    2281:             <style>{`
+--> 2282:                 .bulk-print-container {
+    2283:                     display: none;
+    2284:                 }
+    2285:             `}</style>
+    2286:         </div>
+    2287:     );
+    2288: 
+    2289: }
+----------------------------------------

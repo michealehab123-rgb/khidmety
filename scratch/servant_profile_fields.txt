@@ -1,0 +1,20 @@
+import { doc, onSnapshot, updateDoc, db, collection } from '../firebase';
+list.push({ id: docSnap.id, ...docSnap.data() });
+const isByServant = record.servantId === servant.id ||
+(Array.isArray(record.visitedBy) && record.visitedBy.includes(servant.name)) ||
+record.servantName === servant.name;
+const isByServant = record.servantId === servant.id || record.servantName === servant.name;
+const isByServant = record.servantId === servant.id ||
+(Array.isArray(record.visitedBy) && record.visitedBy.includes(servant.name)) ||
+record.servantName === servant.name;
+const isByServant = record.servantId === servant.id || record.servantName === servant.name;
+...(servant.weeklyFollowUp || {}),
+...(servant.weeklyFollowUp?.[weekKey] || {}),
+await updateDoc(doc(db, 'servants', id), {
+const data = docSnap.data();
+await updateDoc(doc(db, 'servants', id), updates);
+const nameStr = typeof servant.name === 'object' ? servant.name.name : servant.name;
+<h1 className="text-3xl font-black text-slate-900 dark:text-white mb-2">{nameStr} - {servant.code || servant.servantCode}</h1>
+<p className="font-black text-slate-750 dark:text-slate-200" dir="ltr">{servant.phone || '—'}</p>
+<p className="font-black text-slate-750 dark:text-slate-200" dir="ltr">{servant.birthDate || '—'}</p>
+<p className="font-black text-slate-750 dark:text-slate-200">{servant.address || '—'}</p>
