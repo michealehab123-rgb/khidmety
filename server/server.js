@@ -1095,7 +1095,6 @@ const compileStudentVariablesBackend = (student, filters, pointsHistory, nowInEg
         firstName,
         massCount,
         serviceCount,
-        traits,
         confessionStatus,
         notes
     ];

@@ -148,16 +148,19 @@ const countFridaysForStudentInMonth = (student, month, year) => {
     return count > 0 ? count : 1;
 };
 
-const DEFAULT_MONTHLY_TEMPLATE = `سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
+const DEFAULT_MONTHLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+
+سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
 حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الشهر:
 ⛪ حضور القداس الإلهي: {massCount}
 🏫 حضور حوش الخدمة: {serviceCount}
-🌟 صفات تميز بها هذا الشهر: {traits}.
 🕊️ جلسة الاعتراف والافتقاد الدوري: {confessionStatus}.
 📝 ملاحظات الخدمة: {notes}
 صلوا لأجل الخدمة دائماً.`;
 
-const DEFAULT_WEEKLY_TEMPLATE = `سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
+const DEFAULT_WEEKLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+
+سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
 حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الأسبوع:
 ⛪ حضور القداس الإلهي: {massCount}.
 🏫 حضور حوش الخدمة: {serviceCount}.
