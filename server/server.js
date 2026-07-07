@@ -12,15 +12,34 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// قراءة ملف الـ JSON بأمان في نظام الموديولز الحديث
-const serviceAccount = JSON.parse(
-  readFileSync(new URL('./service-account.json', import.meta.url))
-);
+// قراءة ملف الـ JSON بأمان من البيئة أو ملف محلي لتجنب مشاكل الـ gitignore على Vercel
+let serviceAccount;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  } catch (err) {
+    console.error("Error parsing FIREBASE_SERVICE_ACCOUNT env variable:", err);
+  }
+}
+
+if (!serviceAccount) {
+  try {
+    serviceAccount = JSON.parse(
+      readFileSync(new URL('./service-account.json', import.meta.url))
+    );
+  } catch (err) {
+    console.error("Failed to load service-account.json locally:", err.message);
+  }
+}
 
 // تشغيل الفايربيز بالنظام الحديث المستقر والمضمون
-initializeApp({
-  credential: cert(serviceAccount)
-});
+if (serviceAccount) {
+  initializeApp({
+    credential: cert(serviceAccount)
+  });
+} else {
+  initializeApp();
+}
 
 const db = getFirestore();
 
