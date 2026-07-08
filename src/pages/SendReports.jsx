@@ -1490,7 +1490,7 @@ export default function SendReports() {
                         </p>
                     </div>
                     
-                    {isGenAdmin && activeTab === 'students' && (
+                    {isGenAdmin && (activeTab === 'students' || activeTab === 'webhook_bot') && (
                         <button
                             onClick={() => setShowTemplateEditor(!showTemplateEditor)}
                             className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 backdrop-blur-sm transition-all duration-300 flex items-center gap-2 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
@@ -1549,7 +1549,7 @@ export default function SendReports() {
             )}
 
             {/* Template Editor Box */}
-            {showTemplateEditor && isGenAdmin && activeTab === 'students' && (
+            {showTemplateEditor && isGenAdmin && (activeTab === 'students' || activeTab === 'webhook_bot') && (
                 <div className="mb-8 bg-white dark:bg-[#1e293b] p-6 rounded-3xl border-2 border-blue-100 dark:border-blue-900/30 shadow-xl animate-in slide-in-from-top-4 duration-300">
                     <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                         <MessageSquare className="text-blue-500 animate-pulse" size={20} /> تخصيص قالب الرسائل التلقائي
