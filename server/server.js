@@ -495,11 +495,15 @@ async function runScheduledNotificationsAndReports(log) {
       // Fetch config for template name
       const templateConfigDoc = await db.collection('report_templates').doc('config').get();
       const templateConfig = templateConfigDoc.exists ? templateConfigDoc.data() : {};
-      const whatsappTemplateName = templateConfig.whatsappTemplateName || 'student_report_summary';
       
       for (const schDoc of schedulesSnap.docs) {
         const schData = schDoc.data();
         const schId = schDoc.id;
+        
+        const reportType = schData.filters?.reportType || 'monthly';
+        const whatsappTemplateName = reportType === 'monthly'
+          ? (templateConfig.whatsappTemplateNameMonthly || 'student_monthly_report')
+          : (templateConfig.whatsappTemplateNameWeekly || 'student_weekly_report');
         
         let isTimeToRun = false;
         const scheduleMode = schData.scheduleMode || 'recurring';
