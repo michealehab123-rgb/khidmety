@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
     Users, Filter, MessageSquare, Copy, ExternalLink, RefreshCw, 
     Search, Check, AlertCircle, Sparkles, X, Info, Smartphone,
-    Clock, Calendar, Bell, List
+    Clock, Calendar, Bell, List, Trash2
 } from 'lucide-react';
 
 const STAGE_CLASS_MAP = {
@@ -1110,6 +1110,28 @@ export default function SendReports() {
         if (webhookFilterStatus === 'all') return webhookLogs;
         return webhookLogs.filter(log => log.status === webhookFilterStatus);
     }, [webhookLogs, webhookFilterStatus]);
+
+    const handleDeleteWebhookLog = async (logId) => {
+        try {
+            await deleteDoc(doc(db, 'webhookQueryLogs', logId));
+            showToast("تم مسح محاولة الاستعلام من السجل بنجاح!", "success");
+        } catch (err) {
+            console.error("Error deleting log:", err);
+            showToast("حدث خطأ أثناء مسح السجل", "error");
+        }
+    };
+
+    const handleClearAllWebhookLogs = async () => {
+        if (!window.confirm("هل أنت متأكد من مسح جميع سجلات الاستعلام بالكامل؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+        try {
+            const deletePromises = webhookLogs.map(log => deleteDoc(doc(db, 'webhookQueryLogs', log.id)));
+            await Promise.all(deletePromises);
+            showToast("تم تفريغ سجل الاستعلامات بالكامل بنجاح!", "success");
+        } catch (err) {
+            console.error("Error clearing logs:", err);
+            showToast("حدث خطأ أثناء تفريغ السجل", "error");
+        }
+    };
 
     // Determine target classes based on Stage selection & permissions
     const availableClasses = useMemo(() => {
@@ -2957,7 +2979,18 @@ export default function SendReports() {
                             </h3>
                             
                             {/* Filter Status Buttons */}
-                            <div className="flex gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200/40 dark:border-slate-800 shrink-0">
+                            <div className="flex items-center gap-3 shrink-0">
+                                {webhookLogs.length > 0 && (
+                                    <button
+                                        onClick={handleClearAllWebhookLogs}
+                                        className="p-2 text-rose-500 hover:text-rose-700 bg-transparent border-none cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all flex items-center gap-1 font-bold text-[10px]"
+                                        title="مسح السجل بالكامل"
+                                    >
+                                        <Trash2 size={13} />
+                                        تفريغ السجل
+                                    </button>
+                                )}
+                                <div className="flex gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200/40 dark:border-slate-800">
                                 <button
                                     onClick={() => setWebhookFilterStatus('all')}
                                     className={`px-3 py-1 rounded-lg text-[10px] font-black border-none cursor-pointer transition-all ${
@@ -2989,6 +3022,7 @@ export default function SendReports() {
                                     مرفوض ❌
                                 </button>
                             </div>
+                            </div>
                         </div>
 
                         {webhookLogsLoading ? (
@@ -3014,7 +3048,8 @@ export default function SendReports() {
                                             <th className="pb-3">اسم المخدوم</th>
                                             <th className="pb-3">حالة العملية</th>
                                             <th className="pb-3">تفاصيل/السبب</th>
-                                            <th className="pb-3 pl-2">الوقت</th>
+                                            <th className="pb-3">الوقت</th>
+                                            <th className="pb-3 pl-2 text-center">مسح</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -3022,7 +3057,7 @@ export default function SendReports() {
                                             <tr key={logItem.id} className="text-xs text-slate-650 dark:text-slate-300 font-semibold hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-all">
                                                 <td className="py-3.5 pr-2 font-mono">{logItem.senderPhone}</td>
                                                 <td className="py-3.5 font-mono">{logItem.studentCode}</td>
-                                                <td className="py-3.5 font-black text-slate-800 dark:text-slate-150">{logItem.studentName}</td>
+                                                <td className="py-3.5 font-black text-slate-800 dark:text-white">{logItem.studentName}</td>
                                                 <td className="py-3.5">
                                                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black ${
                                                         logItem.status === 'sent'
@@ -3045,8 +3080,17 @@ export default function SendReports() {
                                                 <td className="py-3.5 text-[10px] text-slate-450 dark:text-slate-500 font-bold max-w-[200px] truncate">
                                                     {logItem.status === 'sent' ? 'تم تسليم التقرير بنجاح' : (logItem.reason || 'فشل التحقق أمنياً')}
                                                 </td>
-                                                <td className="py-3.5 pl-2 text-[10px] text-slate-450 dark:text-slate-500 font-bold">
+                                                <td className="py-3.5 text-[10px] text-slate-450 dark:text-slate-500 font-bold">
                                                     {logItem.timestamp ? new Date(logItem.timestamp).toLocaleString('ar-EG', { hour12: true }) : ''}
+                                                </td>
+                                                <td className="py-3.5 pl-2 text-center">
+                                                    <button
+                                                        onClick={() => handleDeleteWebhookLog(logItem.id)}
+                                                        className="p-1.5 text-slate-400 hover:text-rose-600 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border-none cursor-pointer transition-all"
+                                                        title="مسح من السجل"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
