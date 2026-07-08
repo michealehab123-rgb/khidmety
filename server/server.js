@@ -1543,15 +1543,30 @@ app.post('/api/webhook', async (req, res) => {
     const variables = compileStudentVariablesBackend(studentData, { reportType: 'monthly' }, pointsHistoryList, nowInEgypt);
     const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
 
-    const reportText = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+    // Fetch config for webhook template
+    const templateConfigDoc = await db.collection('report_templates').doc('config').get();
+    const templateConfig = templateConfigDoc.exists ? templateConfigDoc.data() : {};
+    
+    const DEFAULT_WEBHOOK_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
 
-سلام ونعمة يا فندم من خدمة مدارس أحد ${stageClass}.
-حابين نشارك مع حضراتكم تقرير ${genderLabel} ${firstName} خلال هذا الشهر:
-⛪ حضور القداس الإلهي: ${massCount}
-🏫 حضور حوش الخدمة: ${serviceCount}
-🕊️ جلسة الاعتراف والافتقاد الدوري: ${confessionStatus}.
-📝 ملاحظات الخدمة: ${notes}
+سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
+حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الشهر:
+⛪ حضور القداس الإلهي: {massCount}
+🏫 حضور حوش الخدمة: {serviceCount}
+🕊️ جلسة الاعتراف والافتقاد الدوري: {confessionStatus}.
+📝 ملاحظات الخدمة: {notes}
 صلوا لأجل الخدمة دائماً.`;
+
+    const webhookTemplate = templateConfig.webhookTemplate || DEFAULT_WEBHOOK_TEMPLATE;
+
+    const reportText = webhookTemplate
+      .replace(/{stageClass}/g, stageClass)
+      .replace(/{genderLabel}/g, genderLabel)
+      .replace(/{firstName}/g, firstName)
+      .replace(/{massCount}/g, massCount)
+      .replace(/{serviceCount}/g, serviceCount)
+      .replace(/{confessionStatus}/g, confessionStatus)
+      .replace(/{notes}/g, notes || 'لا يوجد');
 
     const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, reportText);
 
