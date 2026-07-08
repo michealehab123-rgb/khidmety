@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
     Users, Filter, MessageSquare, Copy, ExternalLink, RefreshCw, 
     Search, Check, AlertCircle, Sparkles, X, Info, Smartphone,
-    Clock, Calendar, Bell
+    Clock, Calendar, Bell, List
 } from 'lucide-react';
 
 const STAGE_CLASS_MAP = {
@@ -227,9 +227,14 @@ export default function SendReports() {
     };
 
     // Admin Summary Report States
-    const [activeTab, setActiveTab] = useState('students'); // 'students' | 'admin_summary'
+    const [activeTab, setActiveTab] = useState('students'); // 'students' | 'admin_summary' | 'periodic_schedule' | 'webhook_bot'
     const [adminReportPhone, setAdminReportPhone] = useState(() => localStorage.getItem('reports_admin_phone') || '');
     const [servants, setServants] = useState([]);
+    
+    // Webhook Bot States
+    const [webhookBotEnabled, setWebhookBotEnabled] = useState(true);
+    const [webhookLogs, setWebhookLogs] = useState([]);
+    const [webhookLogsLoading, setWebhookLogsLoading] = useState(true);
     const [servantsLoading, setServantsLoading] = useState(true);
     const [editedAdminMessage, setEditedAdminMessage] = useState('');
     const [adminReportPeriod, setAdminReportPeriod] = useState('weekly'); // 'weekly' | 'monthly'
@@ -1047,6 +1052,59 @@ export default function SendReports() {
         return () => unsub();
     }, [reportType, selectedMonth, selectedYear, selectedWeekKey, weeksList]);
 
+    // Sync Webhook Bot Enabled state from settings
+    useEffect(() => {
+        const unsub = onSnapshot(doc(db, 'settings', 'notifications'), (snap) => {
+            if (snap.exists()) {
+                const data = snap.data();
+                setWebhookBotEnabled(data.webhookBotEnabled !== false);
+            }
+        });
+        return () => unsub();
+    }, []);
+
+    // Sync Webhook Query Logs
+    useEffect(() => {
+        if (activeTab !== 'webhook_bot') return;
+        
+        setWebhookLogsLoading(true);
+        const q = query(
+            collection(db, 'webhookQueryLogs'),
+            orderBy('timestamp', 'desc'),
+            limit(50)
+        );
+        
+        const unsub = onSnapshot(q, (snap) => {
+            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setWebhookLogs(list);
+            setWebhookLogsLoading(false);
+        }, (error) => {
+            console.error("Error loading webhook query logs:", error);
+            setWebhookLogsLoading(false);
+        });
+        
+        return () => unsub();
+    }, [activeTab]);
+
+    const toggleWebhookBot = async () => {
+        try {
+            const nextState = !webhookBotEnabled;
+            await setDoc(doc(db, 'settings', 'notifications'), {
+                webhookBotEnabled: nextState
+            }, { merge: true });
+            showToast(`تم ${nextState ? 'تفعيل' : 'تعطيل'} بوت الاستعلام التفاعلي بنجاح!`, 'success');
+        } catch (err) {
+            console.error("Error updating webhook bot status:", err);
+            showToast("حدث خطأ أثناء تعديل حالة البوت", "error");
+        }
+    };
+
+    const handleCopyText = (text, label) => {
+        navigator.clipboard.writeText(text)
+            .then(() => showToast(`تم نسخ ${label} بنجاح! 📋`, 'success'))
+            .catch(() => showToast(`فشل نسخ ${label}`, 'error'));
+    };
+
     // Determine target classes based on Stage selection & permissions
     const availableClasses = useMemo(() => {
         if (!selectedStage || selectedStage === 'all') return [];
@@ -1386,6 +1444,16 @@ export default function SendReports() {
                         }`}
                     >
                         📅 الإرسال الدوري والجدولة
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('webhook_bot')}
+                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none ${
+                            activeTab === 'webhook_bot'
+                            ? 'border-blue-600 text-blue-600 dark:text-blue-400 border-b-solid font-black'
+                            : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                        }`}
+                    >
+                        💬 الاستعلام التفاعلي
                     </button>
                 </div>
             )}
@@ -2791,6 +2859,155 @@ export default function SendReports() {
                                                             إعادة عبر API 🚀
                                                         </button>
                                                     </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'webhook_bot' && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* Header Banner */}
+                    <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-150 dark:border-slate-800/80 shadow-md">
+                        <h2 className="text-xl font-black text-slate-850 dark:text-slate-100 flex items-center gap-2">
+                            <MessageSquare className="text-blue-600" size={24} /> نظام الاستعلام التفاعلي بالرسائل (Webhook Bot)
+                        </h2>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-bold">
+                            تتيح هذه الميزة لأولياء الأمور إرسال كود الطالب إلى رقم الواتساب الخاص بالخدمة، ليقوم النظام بالتحقق أمنياً وإرسال التقرير الشهري للطفل تلقائياً وفورياً.
+                        </p>
+                    </div>
+
+                    {/* Bot Setup Card */}
+                    <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-150 dark:border-slate-800/80 shadow-md space-y-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                                    تفعيل البوت التفاعلي السحابي
+                                </h3>
+                                <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold mt-0.5">عند تعطيل البوت، لن يقوم النظام بالرد على رسائل أولياء الأمور الواردة.</p>
+                            </div>
+                            <button
+                                onClick={toggleWebhookBot}
+                                className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-2 border-none ${
+                                    webhookBotEnabled
+                                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-650/20'
+                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                <span className={`w-2.5 h-2.5 rounded-full ${webhookBotEnabled ? 'bg-white animate-pulse' : 'bg-slate-400'}`}></span>
+                                {webhookBotEnabled ? 'البوت نشط ويعمل حالياً' : 'البوت معطل ومغلق'}
+                            </button>
+                        </div>
+
+                        {/* Meta API Setup Info */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-black text-slate-500 dark:text-slate-400">رابط الـ Webhook (كتابة الرابط في Meta Dashboard)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        readOnly 
+                                        value="https://server-ochre-one-17.vercel.app/api/webhook" 
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 text-xs px-3.5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 font-mono outline-none"
+                                    />
+                                    <button 
+                                        onClick={() => handleCopyText('https://server-ochre-one-17.vercel.app/api/webhook', 'رابط الـ Webhook')}
+                                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl border-none cursor-pointer transition-all"
+                                    >
+                                        نسخ
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-black text-slate-500 dark:text-slate-400">رمز التحقق (Verify Token في Meta Dashboard)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        readOnly 
+                                        value="KhidmetyVerifyToken123" 
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 text-xs px-3.5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 font-mono outline-none"
+                                    />
+                                    <button 
+                                        onClick={() => handleCopyText('KhidmetyVerifyToken123', 'رمز التحقق')}
+                                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl border-none cursor-pointer transition-all"
+                                    >
+                                        نسخ
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Query Logs Dashboard */}
+                    <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-150 dark:border-slate-800/80 shadow-md space-y-4">
+                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                            <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <List className="text-blue-600" size={18} /> سجل عمليات الاستعلام اللحظي بالواتساب
+                            </h3>
+                            <span className="text-[10px] text-slate-450 dark:text-slate-500 font-bold">آخر 50 محاولة استعلام</span>
+                        </div>
+
+                        {webhookLogsLoading ? (
+                            <div className="flex flex-col items-center justify-center py-10 gap-2.5">
+                                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-xs text-slate-400 font-bold">جاري تحميل سجل الاستعلامات...</span>
+                            </div>
+                        ) : webhookLogs.length === 0 ? (
+                            <div className="text-center py-12 space-y-2">
+                                <div className="w-14 h-14 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto text-slate-350 dark:text-slate-700">
+                                    <MessageSquare size={24} />
+                                </div>
+                                <h4 className="text-xs font-black text-slate-700 dark:text-slate-300">لا توجد عمليات استعلام بعد</h4>
+                                <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold">تظهر هنا التقارير التي يطلبها أولياء الأمور تلقائياً فور إرسال الكود.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-right border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-slate-150 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 font-bold text-[11px]">
+                                            <th className="pb-3 pr-2">رقم المرسل</th>
+                                            <th className="pb-3">كود الطالب</th>
+                                            <th className="pb-3">اسم المخدوم</th>
+                                            <th className="pb-3">حالة العملية</th>
+                                            <th className="pb-3">تفاصيل/السبب</th>
+                                            <th className="pb-3 pl-2">الوقت</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                        {webhookLogs.map((logItem) => (
+                                            <tr key={logItem.id} className="text-xs text-slate-650 dark:text-slate-300 font-semibold hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-all">
+                                                <td className="py-3.5 pr-2 font-mono">{logItem.senderPhone}</td>
+                                                <td className="py-3.5 font-mono">{logItem.studentCode}</td>
+                                                <td className="py-3.5 font-black text-slate-800 dark:text-slate-150">{logItem.studentName}</td>
+                                                <td className="py-3.5">
+                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black ${
+                                                        logItem.status === 'sent'
+                                                        ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400'
+                                                        : 'bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-455'
+                                                    }`}>
+                                                        {logItem.status === 'sent' ? (
+                                                            <>
+                                                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                                                                تم الرد والارسال ✅
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                                                                مرفوض ❌
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3.5 text-[10px] text-slate-450 dark:text-slate-500 font-bold max-w-[200px] truncate">
+                                                    {logItem.status === 'sent' ? 'تم تسليم التقرير بنجاح' : (logItem.reason || 'فشل التحقق أمنياً')}
+                                                </td>
+                                                <td className="py-3.5 pl-2 text-[10px] text-slate-450 dark:text-slate-500 font-bold">
+                                                    {logItem.timestamp ? new Date(logItem.timestamp).toLocaleString('ar-EG', { hour12: true }) : ''}
                                                 </td>
                                             </tr>
                                         ))}

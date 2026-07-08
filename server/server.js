@@ -1361,6 +1361,186 @@ const sendWhatsAppTemplateMessage = async (token, phoneId, to, templateName, var
     }
 };
 
+// ==========================================
+// WhatsApp Interactive Webhook Bot
+// ==========================================
+
+// Webhook Verification (GET /api/webhook)
+app.get('/api/webhook', (req, res) => {
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'KhidmetyVerifyToken123';
+  
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  
+  if (mode && token) {
+    if (mode === 'subscribe' && token === verifyToken) {
+      console.log('[Webhook Verification] Success!');
+      res.status(200).send(challenge);
+    } else {
+      console.warn('[Webhook Verification] Failed. Token mismatch.');
+      res.sendStatus(403);
+    }
+  } else {
+    res.sendStatus(400);
+  }
+});
+
+// Webhook Listener (POST /api/webhook)
+app.post('/api/webhook', async (req, res) => {
+  // Return a 200 OK immediately to Meta to acknowledge receipt and prevent retries
+  res.sendStatus(200);
+
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (!accessToken || !phoneNumberId) {
+    console.error('[Webhook] WhatsApp credentials missing from environment variables.');
+    return;
+  }
+
+  try {
+    const body = req.body;
+    
+    if (body.object !== 'whatsapp_business_account') {
+      return;
+    }
+
+    const entry = body.entry?.[0];
+    const change = entry?.changes?.[0];
+    const value = change?.value;
+    
+    if (!value || !value.messages || value.messages.length === 0) {
+      return;
+    }
+
+    const message = value.messages[0];
+    
+    if (message.type !== 'text') {
+      return;
+    }
+
+    const senderPhone = message.from; 
+    const messageText = (message.text?.body || '').trim();
+    
+    // Check if the webhook bot is enabled in settings
+    const settingsDoc = await db.collection('settings').doc('notifications').get();
+    const settings = settingsDoc.exists ? settingsDoc.data() : {};
+    const webhookBotEnabled = settings.webhookBotEnabled !== false; 
+    
+    if (!webhookBotEnabled) {
+      console.log('[Webhook Bot] Disabled in settings. Ignoring message.');
+      return;
+    }
+
+    console.log(`[Webhook Bot 📩] Received message from ${senderPhone}: "${messageText}"`);
+
+    const studentCode = messageText.replace(/\D/g, '').trim();
+    if (!studentCode) {
+      return;
+    }
+
+    let studentDoc = null;
+    let studentData = null;
+    
+    let studentsQuery = await db.collection('students').where('code', '==', studentCode).get();
+    if (studentsQuery.empty) {
+      studentsQuery = await db.collection('students').where('student_code', '==', studentCode).get();
+    }
+    
+    if (!studentsQuery.empty) {
+      studentDoc = studentsQuery.docs[0];
+      studentData = studentDoc.data();
+    }
+
+    if (!studentData) {
+      console.log(`[Webhook Bot 🔍] Student code "${studentCode}" not found.`);
+      await db.collection('webhookQueryLogs').add({
+        senderPhone: senderPhone,
+        studentCode: studentCode,
+        studentName: 'غير معروف',
+        status: 'failed',
+        reason: 'كود الطالب غير مسجل في النظام',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    const studentName = studentData.name || 'مخدوم';
+
+    let cleanSenderPhone = senderPhone.replace(/\D/g, '');
+    
+    const parentPhones = [];
+    if (studentData.fatherPhone) parentPhones.push(studentData.fatherPhone.replace(/\D/g, ''));
+    if (studentData.motherPhone) parentPhones.push(studentData.motherPhone.replace(/\D/g, ''));
+    if (studentData.phone) parentPhones.push(studentData.phone.replace(/\D/g, ''));
+
+    const isAuthorized = parentPhones.some(phone => {
+      if (!phone) return false;
+      const normalizedPhone = phone.slice(-10);
+      const normalizedSender = cleanSenderPhone.slice(-10);
+      return normalizedPhone === normalizedSender && normalizedPhone.length >= 10;
+    });
+
+    if (!isAuthorized) {
+      console.warn(`[Webhook Bot 🔒] Unauthorized query for ${studentName} (${studentCode}) from ${senderPhone}`);
+      
+      await db.collection('webhookQueryLogs').add({
+        senderPhone: senderPhone,
+        studentCode: studentCode,
+        studentName: studentName,
+        status: 'failed',
+        reason: 'رقم الهاتف غير متطابق مع أرقام ولي الأمر المسجلة',
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    console.log(`[Webhook Bot 🔓] Authorized query for ${studentName} from ${senderPhone}`);
+
+    const cairoString = new Date().toLocaleString("sv-SE", { timeZone: "Africa/Cairo" });
+    const nowInEgypt = new Date(cairoString.replace(' ', 'T'));
+    
+    const selectedMonth = nowInEgypt.getMonth() + 1;
+    const selectedYear = nowInEgypt.getFullYear();
+    const start = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
+    const end = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
+
+    const pointsSnap = await db.collection('pointsHistory')
+      .where('createdAt', '>=', Timestamp.fromDate(start))
+      .where('createdAt', '<=', Timestamp.fromDate(end))
+      .get();
+    const pointsHistoryList = pointsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const variables = compileStudentVariablesBackend(studentData, { reportType: 'monthly' }, pointsHistoryList, nowInEgypt);
+    const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+
+    const reportText = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+
+سلام ونعمة يا فندم من خدمة مدارس أحد ${stageClass}.
+حابين نشارك مع حضراتكم تقرير ${genderLabel} ${firstName} خلال هذا الشهر:
+⛪ حضور القداس الإلهي: ${massCount}
+🏫 حضور حوش الخدمة: ${serviceCount}
+🕊️ جلسة الاعتراف والافتقاد الدوري: ${confessionStatus}.
+📝 ملاحظات الخدمة: ${notes}
+صلوا لأجل الخدمة دائماً.`;
+
+    const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, reportText);
+
+    await db.collection('webhookQueryLogs').add({
+      senderPhone: senderPhone,
+      studentCode: studentCode,
+      studentName: studentName,
+      status: success ? 'sent' : 'failed',
+      reason: success ? null : 'فشل إرسال رسالة الواتساب عبر الـ API',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (err) {
+    console.error('[Webhook Bot Error]:', err);
+  }
+});
+
 // Local cron simulation loop (checks every 60 seconds)
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_LOCAL_CRON === 'true') {
   console.log('[Local Cron] Local cron runner initialized. Checking schedules every 60 seconds...');
