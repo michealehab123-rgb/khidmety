@@ -1548,10 +1548,8 @@ export default function SendReports() {
                 </div>
             )}
 
-            {activeTab === 'students' && (
-                <>
-                    {/* Template Editor Box */}
-                    {showTemplateEditor && isGenAdmin && (
+            {/* Template Editor Box */}
+            {showTemplateEditor && isGenAdmin && (
                 <div className="mb-8 bg-white dark:bg-[#1e293b] p-6 rounded-3xl border-2 border-blue-100 dark:border-blue-900/30 shadow-xl animate-in slide-in-from-top-4 duration-300">
                     <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
                         <MessageSquare className="text-blue-500 animate-pulse" size={20} /> تخصيص قالب الرسائل التلقائي
@@ -1617,6 +1615,9 @@ export default function SendReports() {
                     </div>
                 </div>
             )}
+
+            {activeTab === 'students' && (
+                <>
 
             {/* Smart Filter Card */}
             <section className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl shadow-md border border-slate-150 dark:border-slate-800/80 mb-8 space-y-6">
