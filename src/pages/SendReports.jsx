@@ -235,6 +235,7 @@ export default function SendReports() {
     const [webhookBotEnabled, setWebhookBotEnabled] = useState(true);
     const [webhookLogs, setWebhookLogs] = useState([]);
     const [webhookLogsLoading, setWebhookLogsLoading] = useState(true);
+    const [webhookFilterStatus, setWebhookFilterStatus] = useState('all'); // 'all' | 'sent' | 'failed'
     const [servantsLoading, setServantsLoading] = useState(true);
     const [editedAdminMessage, setEditedAdminMessage] = useState('');
     const [adminReportPeriod, setAdminReportPeriod] = useState('weekly'); // 'weekly' | 'monthly'
@@ -1104,6 +1105,11 @@ export default function SendReports() {
             .then(() => showToast(`تم نسخ ${label} بنجاح! 📋`, 'success'))
             .catch(() => showToast(`فشل نسخ ${label}`, 'error'));
     };
+
+    const filteredWebhookLogs = useMemo(() => {
+        if (webhookFilterStatus === 'all') return webhookLogs;
+        return webhookLogs.filter(log => log.status === webhookFilterStatus);
+    }, [webhookLogs, webhookFilterStatus]);
 
     // Determine target classes based on Stage selection & permissions
     const availableClasses = useMemo(() => {
@@ -2945,11 +2951,44 @@ export default function SendReports() {
 
                     {/* Query Logs Dashboard */}
                     <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-150 dark:border-slate-800/80 shadow-md space-y-4">
-                        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-2 border-b border-slate-100 dark:border-slate-800">
                             <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                 <List className="text-blue-600" size={18} /> سجل عمليات الاستعلام اللحظي بالواتساب
                             </h3>
-                            <span className="text-[10px] text-slate-450 dark:text-slate-500 font-bold">آخر 50 محاولة استعلام</span>
+                            
+                            {/* Filter Status Buttons */}
+                            <div className="flex gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200/40 dark:border-slate-800 shrink-0">
+                                <button
+                                    onClick={() => setWebhookFilterStatus('all')}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-black border-none cursor-pointer transition-all ${
+                                        webhookFilterStatus === 'all'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-transparent'
+                                    }`}
+                                >
+                                    الكل
+                                </button>
+                                <button
+                                    onClick={() => setWebhookFilterStatus('sent')}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-black border-none cursor-pointer transition-all ${
+                                        webhookFilterStatus === 'sent'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-transparent'
+                                    }`}
+                                >
+                                    تم الرد ✅
+                                </button>
+                                <button
+                                    onClick={() => setWebhookFilterStatus('failed')}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-black border-none cursor-pointer transition-all ${
+                                        webhookFilterStatus === 'failed'
+                                        ? 'bg-rose-600 text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-transparent'
+                                    }`}
+                                >
+                                    مرفوض ❌
+                                </button>
+                            </div>
                         </div>
 
                         {webhookLogsLoading ? (
@@ -2957,13 +2996,13 @@ export default function SendReports() {
                                 <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                                 <span className="text-xs text-slate-400 font-bold">جاري تحميل سجل الاستعلامات...</span>
                             </div>
-                        ) : webhookLogs.length === 0 ? (
+                        ) : filteredWebhookLogs.length === 0 ? (
                             <div className="text-center py-12 space-y-2">
                                 <div className="w-14 h-14 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto text-slate-350 dark:text-slate-700">
                                     <MessageSquare size={24} />
                                 </div>
-                                <h4 className="text-xs font-black text-slate-700 dark:text-slate-300">لا توجد عمليات استعلام بعد</h4>
-                                <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold">تظهر هنا التقارير التي يطلبها أولياء الأمور تلقائياً فور إرسال الكود.</p>
+                                <h4 className="text-xs font-black text-slate-700 dark:text-slate-300">لا توجد عمليات استعلام مطابقة</h4>
+                                <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold">لم يتم تسجيل عمليات بالفلتر المحدد حالياً.</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
@@ -2979,7 +3018,7 @@ export default function SendReports() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                                        {webhookLogs.map((logItem) => (
+                                        {filteredWebhookLogs.map((logItem) => (
                                             <tr key={logItem.id} className="text-xs text-slate-650 dark:text-slate-300 font-semibold hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-all">
                                                 <td className="py-3.5 pr-2 font-mono">{logItem.senderPhone}</td>
                                                 <td className="py-3.5 font-mono">{logItem.studentCode}</td>
