@@ -2937,7 +2937,7 @@ export default function SendReports() {
                             <MessageSquare className="text-blue-600" size={24} /> نظام الاستعلام التفاعلي بالرسائل (Webhook Bot)
                         </h2>
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-bold">
-                            تتيح هذه الميزة لأولياء الأمور إرسال كود الطالب إلى رقم الواتساب الخاص بالخدمة، ليقوم النظام بالتحقق أمنياً وإرسال التقرير الشهري للطفل تلقائياً وفورياً.
+                            تتيح هذه الميزة لأولياء الأمور إرسال كود المخدوم إلى رقم الواتساب الخاص بالخدمة، ليقوم النظام بالتحقق أمنياً وإرسال التقرير الشهري للطفل تلقائياً وفورياً.
                         </p>
                     </div>
 
@@ -3075,7 +3075,7 @@ export default function SendReports() {
                                     <thead>
                                         <tr className="border-b border-slate-150 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 font-bold text-[11px]">
                                             <th className="pb-3 pr-2">رقم المرسل</th>
-                                            <th className="pb-3">كود الطالب</th>
+                                            <th className="pb-3">كود المخدوم</th>
                                             <th className="pb-3">اسم المخدوم</th>
                                             <th className="pb-3">حالة العملية</th>
                                             <th className="pb-3">تفاصيل/السبب</th>
@@ -3086,7 +3086,14 @@ export default function SendReports() {
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                                         {filteredWebhookLogs.map((logItem) => (
                                             <tr key={logItem.id} className="text-xs text-slate-650 dark:text-slate-300 font-semibold hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-all">
-                                                <td className="py-3.5 pr-2 font-mono">{logItem.senderPhone}</td>
+                                                <td className="py-3.5 pr-2 font-mono">
+                                                    <div>{logItem.senderPhone}</div>
+                                                    {logItem.senderInfo && (
+                                                        <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5" style={{ direction: 'rtl' }}>
+                                                            👤 {logItem.senderInfo}
+                                                        </div>
+                                                    )}
+                                                </td>
                                                 <td className="py-3.5 font-mono">{logItem.studentCode}</td>
                                                 <td className="py-3.5 font-black text-slate-800 dark:text-white">{logItem.studentName}</td>
                                                 <td className="py-3.5">

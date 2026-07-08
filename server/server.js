@@ -1435,6 +1435,63 @@ app.post('/api/webhook', async (req, res) => {
 
     console.log(`[Webhook Bot 📩] Received message from ${senderPhone}: "${messageText}"`);
 
+    // Scan database to identify the sender
+    let cleanSenderPhone = senderPhone.replace(/\D/g, '');
+    let senderInfoParts = [];
+
+    try {
+      // 1. Search in servants
+      const servantsSnap = await db.collection('servants').get();
+      const matchingServants = servantsSnap.docs
+        .map(doc => doc.data())
+        .filter(s => {
+          const p = String(s.phone || '').replace(/\D/g, '');
+          return p && p.slice(-10) === cleanSenderPhone.slice(-10);
+        });
+      
+      if (matchingServants.length > 0) {
+        senderInfoParts.push(`خادم: ${matchingServants[0].name}`);
+      }
+
+      // 2. Search in students
+      const studentsSnapForSender = await db.collection('students').get();
+      const studentsListForSender = studentsSnapForSender.docs.map(doc => doc.data());
+
+      const matchingAsStudent = studentsListForSender.filter(s => {
+        const phones = [];
+        if (s.phone) phones.push(String(s.phone).replace(/\D/g, ''));
+        if (Array.isArray(s.phones)) {
+          s.phones.forEach(p => { if (p) phones.push(String(p).replace(/\D/g, '')); });
+        }
+        return phones.some(p => p && p.slice(-10) === cleanSenderPhone.slice(-10));
+      });
+
+      if (matchingAsStudent.length > 0) {
+        senderInfoParts.push(`مخدوم: ${matchingAsStudent[0].name}`);
+      }
+
+      const matchingAsParent = studentsListForSender.filter(s => {
+        const phones = [];
+        if (s.fatherPhone) phones.push(String(s.fatherPhone).replace(/\D/g, ''));
+        if (s.motherPhone) phones.push(String(s.motherPhone).replace(/\D/g, ''));
+        if (Array.isArray(s.parentsContacts)) {
+          s.parentsContacts.forEach(contact => {
+            if (contact && contact.phone) phones.push(String(contact.phone).replace(/\D/g, ''));
+          });
+        }
+        return phones.some(p => p && p.slice(-10) === cleanSenderPhone.slice(-10));
+      });
+
+      if (matchingAsParent.length > 0) {
+        const studentNames = matchingAsParent.map(s => s.name || 'مخدوم').join('، ');
+        senderInfoParts.push(`ولي أمر: ${studentNames}`);
+      }
+    } catch (scanErr) {
+      console.error('[Webhook Bot Sender Scan Error]:', scanErr);
+    }
+
+    const senderInfo = senderInfoParts.join(' / ') || 'رقم غير مسجل';
+
     const studentCode = messageText.replace(/\D/g, '').trim();
     if (!studentCode) {
       return;
@@ -1457,6 +1514,7 @@ app.post('/api/webhook', async (req, res) => {
       console.log(`[Webhook Bot 🔍] Student code "${studentCode}" not found.`);
       await db.collection('webhookQueryLogs').add({
         senderPhone: senderPhone,
+        senderInfo: senderInfo,
         studentCode: studentCode,
         studentName: 'غير معروف',
         status: 'failed',
@@ -1468,7 +1526,7 @@ app.post('/api/webhook', async (req, res) => {
 
     const studentName = studentData.name || 'مخدوم';
 
-    let cleanSenderPhone = senderPhone.replace(/\D/g, '');
+    // cleanSenderPhone is already declared above
     
     // 1. Gather registered parent phones
     const parentPhones = [];
@@ -1515,6 +1573,7 @@ app.post('/api/webhook', async (req, res) => {
       
       await db.collection('webhookQueryLogs').add({
         senderPhone: senderPhone,
+        senderInfo: senderInfo,
         studentCode: studentCode,
         studentName: studentName,
         status: 'failed',
@@ -1572,6 +1631,7 @@ app.post('/api/webhook', async (req, res) => {
 
     await db.collection('webhookQueryLogs').add({
       senderPhone: senderPhone,
+      senderInfo: senderInfo,
       studentCode: studentCode,
       studentName: studentName,
       status: success ? 'sent' : 'failed',
