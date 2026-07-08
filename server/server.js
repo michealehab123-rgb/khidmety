@@ -1470,16 +1470,10 @@ app.post('/api/webhook', async (req, res) => {
 
     let cleanSenderPhone = senderPhone.replace(/\D/g, '');
     
+    // 1. Gather registered parent phones
     const parentPhones = [];
     if (studentData.fatherPhone) parentPhones.push(String(studentData.fatherPhone).replace(/\D/g, ''));
     if (studentData.motherPhone) parentPhones.push(String(studentData.motherPhone).replace(/\D/g, ''));
-    if (studentData.phone) parentPhones.push(String(studentData.phone).replace(/\D/g, ''));
-    
-    if (Array.isArray(studentData.phones)) {
-      studentData.phones.forEach(p => {
-        if (p) parentPhones.push(String(p).replace(/\D/g, ''));
-      });
-    }
     if (Array.isArray(studentData.parentsContacts)) {
       studentData.parentsContacts.forEach(contact => {
         if (contact && contact.phone) {
@@ -1487,8 +1481,29 @@ app.post('/api/webhook', async (req, res) => {
         }
       });
     }
+    const cleanParentPhones = [...new Set(parentPhones.filter(Boolean))];
 
-    const isAuthorized = parentPhones.some(phone => {
+    // 2. Gather student personal phones
+    const studentPhones = [];
+    if (studentData.phone) studentPhones.push(String(studentData.phone).replace(/\D/g, ''));
+    if (Array.isArray(studentData.phones)) {
+      studentData.phones.forEach(p => {
+        if (p) studentPhones.push(String(p).replace(/\D/g, ''));
+      });
+    }
+    const cleanStudentPhones = [...new Set(studentPhones.filter(Boolean))];
+
+    // 3. Apply business logic:
+    // If parent phones exist, ONLY parent phones are authorized to query.
+    // If NO parent phones exist, student personal phones can query as fallback.
+    let authorizedPhones = [];
+    if (cleanParentPhones.length > 0) {
+      authorizedPhones = cleanParentPhones;
+    } else {
+      authorizedPhones = cleanStudentPhones;
+    }
+
+    const isAuthorized = authorizedPhones.some(phone => {
       if (!phone) return false;
       const normalizedPhone = phone.slice(-10);
       const normalizedSender = cleanSenderPhone.slice(-10);
