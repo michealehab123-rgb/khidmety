@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { db, collection, query, where, onSnapshot, doc, updateDoc, setDoc, getDoc, deleteDoc, addDoc, orderBy, limit } from '../firebase';
+import { db, collection, query, where, onSnapshot, doc, updateDoc, setDoc, getDoc, deleteDoc, addDoc, orderBy, limit, getDocs } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { 
     Users, Filter, MessageSquare, Copy, ExternalLink, RefreshCw, 
@@ -1042,32 +1042,32 @@ export default function SendReports() {
         }
     }, [authLoading, servant, isClassServant, isStageAdmin]);
 
-    // Fetch students
-    useEffect(() => {
+    // Fetch students (one-time fetch to reduce Firebase reads)
+    const loadStudents = async () => {
         setStudentsLoading(true);
-        let q = collection(db, 'students');
-        
-        if (isStageAdmin && servant?.assignedStage) {
-            q = query(q, where('schoolGrade', '==', servant.assignedStage));
-        } else if (!isGenAdmin && selectedStage && selectedStage !== 'all') {
-            q = query(q, where('schoolGrade', '==', selectedStage));
-        }
-        
-        const unsub = onSnapshot(q, (snap) => {
+        try {
+            let q = collection(db, 'students');
+            
+            // Limit query results by class/stage parameters only if NOT general admin
+            if (isStageAdmin && servant?.assignedStage) {
+                q = query(q, where('schoolGrade', '==', servant.assignedStage));
+            } else if (!isGenAdmin && servant?.assignedStage) {
+                q = query(q, where('schoolGrade', '==', servant.assignedStage));
+            }
+            
+            const snap = await getDocs(q);
             const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setStudents(list);
-            setStudentsLoading(false);
-        }, (error) => {
+        } catch (error) {
             console.error("Error loading students:", error);
             showToast("حدث خطأ أثناء تحميل بيانات المخدومين", "error");
+        } finally {
             setStudentsLoading(false);
-        });
-        
-        return () => unsub();
-    }, [selectedStage, isStageAdmin, isGenAdmin, servant]);
+        }
+    };
 
-    // Fetch points history for traits determination
-    useEffect(() => {
+    // Fetch points history (one-time fetch to reduce Firebase reads)
+    const loadPointsHistory = async () => {
         let start, end;
         if (reportType === 'monthly') {
             start = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
@@ -1086,23 +1086,38 @@ export default function SendReports() {
         }
         
         setPointsLoading(true);
-        const q = query(
-            collection(db, 'pointsHistory'),
-            where('createdAt', '>=', start),
-            where('createdAt', '<=', end)
-        );
-        
-        const unsub = onSnapshot(q, (snap) => {
+        try {
+            const q = query(
+                collection(db, 'pointsHistory'),
+                where('createdAt', '>=', start),
+                where('createdAt', '<=', end)
+            );
+            const snap = await getDocs(q);
             const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setPointsHistory(list);
-            setPointsLoading(false);
-        }, (error) => {
+        } catch (error) {
             console.error("Error loading points history:", error);
+        } finally {
             setPointsLoading(false);
-        });
-        
-        return () => unsub();
+        }
+    };
+
+    // Load students on mount/role change
+    useEffect(() => {
+        loadStudents();
+    }, [isStageAdmin, isGenAdmin, servant]);
+
+    // Load points history on report scope/timeframe changes
+    useEffect(() => {
+        loadPointsHistory();
     }, [reportType, selectedMonth, selectedYear, selectedWeekKey, weeksList]);
+
+    // Manual Refresh trigger
+    const handleManualRefresh = async () => {
+        showToast("جاري تحديث البيانات من السيرفر...", "info");
+        await Promise.all([loadStudents(), loadPointsHistory()]);
+        showToast("تم تحديث البيانات بنجاح!", "success");
+    };
 
     // Sync Webhook Bot Enabled state from settings
     useEffect(() => {
@@ -1490,15 +1505,25 @@ export default function SendReports() {
                         </p>
                     </div>
                     
-                    {isGenAdmin && (activeTab === 'students' || activeTab === 'webhook_bot') && (
+                    <div className="flex flex-wrap gap-2">
                         <button
-                            onClick={() => setShowTemplateEditor(!showTemplateEditor)}
+                            onClick={handleManualRefresh}
                             className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 backdrop-blur-sm transition-all duration-300 flex items-center gap-2 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                            title="تحديث البيانات من السيرفر"
                         >
-                            <MessageSquare size={18} />
-                            <span>{showTemplateEditor ? "إغلاق محرر القوالب" : "تعديل قالب الرسالة"}</span>
+                            <RefreshCw size={18} className={studentsLoading || pointsLoading ? "animate-spin" : ""} />
+                            <span>تحديث البيانات 🔄</span>
                         </button>
-                    )}
+                        {isGenAdmin && (activeTab === 'students' || activeTab === 'webhook_bot') && (
+                            <button
+                                onClick={() => setShowTemplateEditor(!showTemplateEditor)}
+                                className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 backdrop-blur-sm transition-all duration-300 flex items-center gap-2 cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                <MessageSquare size={18} />
+                                <span>{showTemplateEditor ? "إغلاق محرر القوالب" : "تعديل قالب الرسالة"}</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </header>
 
