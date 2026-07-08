@@ -1080,7 +1080,7 @@ const compileStudentVariablesBackend = (student, filters, pointsHistory, nowInEg
     
     const monthKey = `${String(selectedMonth).padStart(2, '0')}-${selectedYear}`;
     const hasConfessed = student.confessions?.[monthKey]?.status === true;
-    const confessionStatus = hasConfessed ? "تمت بنجاح والحمد لله" : "لم تتم بعد (نرجو تشجيعه)";
+    const confessionStatus = hasConfessed ? "تم الاعتراف ✅" : "لم يتم الاعتراف بعد";
     
     const studentLogs = pointsHistory.filter(log => log.studentId === student.id && (log.amount || 0) > 0);
     const reasons = studentLogs.map(log => log.reason).filter(Boolean);
