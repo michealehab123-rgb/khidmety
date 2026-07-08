@@ -1599,14 +1599,11 @@ app.post('/api/webhook', async (req, res) => {
       .get();
     const pointsHistoryList = pointsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    const variables = compileStudentVariablesBackend(studentData, { reportType: 'monthly' }, pointsHistoryList, nowInEgypt);
-    const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
-
-    // Fetch config for webhook template
+    // Fetch configs for weekly and monthly templates
     const templateConfigDoc = await db.collection('report_templates').doc('config').get();
     const templateConfig = templateConfigDoc.exists ? templateConfigDoc.data() : {};
-    
-    const DEFAULT_WEBHOOK_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+
+    const DEFAULT_MONTHLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
 
 سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
 حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الشهر:
@@ -1616,16 +1613,60 @@ app.post('/api/webhook', async (req, res) => {
 📝 ملاحظات الخدمة: {notes}
 صلوا لأجل الخدمة دائماً.`;
 
-    const webhookTemplate = templateConfig.webhookTemplate || DEFAULT_WEBHOOK_TEMPLATE;
+    const DEFAULT_WEEKLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
 
-    const reportText = webhookTemplate
-      .replace(/{stageClass}/g, stageClass)
-      .replace(/{genderLabel}/g, genderLabel)
-      .replace(/{firstName}/g, firstName)
-      .replace(/{massCount}/g, massCount)
-      .replace(/{serviceCount}/g, serviceCount)
-      .replace(/{confessionStatus}/g, confessionStatus)
-      .replace(/{notes}/g, notes || 'لا يوجد');
+سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
+حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الأسبوع:
+⛪ حضور القداس الإلهي: {massCount}.
+🏫 حضور حوش الخدمة: {serviceCount}.
+🌟 صفات تميز بها هذا الأسبوع: {traits}.
+🕊️ جلسة الاعتراف والافتقاد الدوري: {confessionStatus}.
+📝 ملاحظات الخدمة: {notes}
+صلوا لأجل الخدمة دائماً.`;
+
+    const monthlyTemplate = templateConfig.monthlyTemplate || DEFAULT_MONTHLY_TEMPLATE;
+    const weeklyTemplate = templateConfig.weeklyTemplate || DEFAULT_WEEKLY_TEMPLATE;
+
+    const cleanMessage = (messageText || '').toLowerCase().trim();
+    // Keywords for weekly report
+    const isWeeklyQuery = /الاسبوع|أسبوع|جمعة|جمعه|المرة اللي فاتت|المرة الفاتت|المره اللي فاتت|المره الفاتت|جمعه فاتت/i.test(cleanMessage);
+
+    let reportText = '';
+
+    if (isWeeklyQuery) {
+      // 1. Compile weekly variables
+      const variables = compileStudentVariablesBackend(studentData, { reportType: 'weekly' }, pointsHistoryList, nowInEgypt);
+      const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+      
+      // Compile weekly traits
+      const studentLogs = pointsHistoryList.filter(log => log.studentId === studentDoc.id && (log.amount || 0) > 0);
+      const reasons = studentLogs.map(log => log.reason).filter(Boolean);
+      const uniqueReasons = [...new Set(reasons)];
+      const traits = uniqueReasons.length > 0 ? uniqueReasons.join('، ') : "الالتزام وحسن السلوك";
+
+      reportText = weeklyTemplate
+        .replace(/{stageClass}/g, stageClass)
+        .replace(/{genderLabel}/g, genderLabel)
+        .replace(/{firstName}/g, firstName)
+        .replace(/{massCount}/g, massCount)
+        .replace(/{serviceCount}/g, serviceCount)
+        .replace(/{traits}/g, traits)
+        .replace(/{confessionStatus}/g, confessionStatus)
+        .replace(/{notes}/g, notes || 'لا يوجد');
+    } else {
+      // 2. Compile monthly variables
+      const variables = compileStudentVariablesBackend(studentData, { reportType: 'monthly' }, pointsHistoryList, nowInEgypt);
+      const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+
+      reportText = monthlyTemplate
+        .replace(/{stageClass}/g, stageClass)
+        .replace(/{genderLabel}/g, genderLabel)
+        .replace(/{firstName}/g, firstName)
+        .replace(/{massCount}/g, massCount)
+        .replace(/{serviceCount}/g, serviceCount)
+        .replace(/{confessionStatus}/g, confessionStatus)
+        .replace(/{notes}/g, notes || 'لا يوجد');
+    }
 
     const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, reportText);
 

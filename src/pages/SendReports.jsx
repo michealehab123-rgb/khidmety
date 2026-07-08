@@ -1555,7 +1555,7 @@ export default function SendReports() {
                         <MessageSquare className="text-blue-500 animate-pulse" size={20} /> تخصيص قالب الرسائل التلقائي
                     </h2>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <label className="block text-sm font-black text-slate-600 dark:text-slate-350">قالب التقرير الشهري:</label>
                             <textarea
@@ -1570,15 +1570,6 @@ export default function SendReports() {
                             <textarea
                                 value={weeklyTemplate}
                                 onChange={(e) => setWeeklyTemplate(e.target.value)}
-                                rows={6}
-                                className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/40 text-sm leading-relaxed"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="block text-sm font-black text-slate-600 dark:text-slate-350">قالب الاستعلام التفاعلي (البوت):</label>
-                            <textarea
-                                value={webhookTemplate}
-                                onChange={(e) => setWebhookTemplate(e.target.value)}
                                 rows={6}
                                 className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500/40 text-sm leading-relaxed"
                             />
