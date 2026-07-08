@@ -1471,9 +1471,22 @@ app.post('/api/webhook', async (req, res) => {
     let cleanSenderPhone = senderPhone.replace(/\D/g, '');
     
     const parentPhones = [];
-    if (studentData.fatherPhone) parentPhones.push(studentData.fatherPhone.replace(/\D/g, ''));
-    if (studentData.motherPhone) parentPhones.push(studentData.motherPhone.replace(/\D/g, ''));
-    if (studentData.phone) parentPhones.push(studentData.phone.replace(/\D/g, ''));
+    if (studentData.fatherPhone) parentPhones.push(String(studentData.fatherPhone).replace(/\D/g, ''));
+    if (studentData.motherPhone) parentPhones.push(String(studentData.motherPhone).replace(/\D/g, ''));
+    if (studentData.phone) parentPhones.push(String(studentData.phone).replace(/\D/g, ''));
+    
+    if (Array.isArray(studentData.phones)) {
+      studentData.phones.forEach(p => {
+        if (p) parentPhones.push(String(p).replace(/\D/g, ''));
+      });
+    }
+    if (Array.isArray(studentData.parentsContacts)) {
+      studentData.parentsContacts.forEach(contact => {
+        if (contact && contact.phone) {
+          parentPhones.push(String(contact.phone).replace(/\D/g, ''));
+        }
+      });
+    }
 
     const isAuthorized = parentPhones.some(phone => {
       if (!phone) return false;
