@@ -376,11 +376,17 @@ export default function SendReports() {
     };
 
     const handleClearAllSendingLogs = async () => {
-        if (!window.confirm("هل أنت متأكد من مسح جميع سجلات الإرسال الدوري بالكامل؟")) return;
+        const targetLabel = sendingLogsFilterStatus === 'all'
+            ? "جميع سجلات الإرسال الدوري بالكامل"
+            : sendingLogsFilterStatus === 'sent'
+                ? "سجلات الإرسال الدوري الناجحة فقط"
+                : "سجلات الإرسال الدوري الفاشلة فقط";
+
+        if (!window.confirm(`هل أنت متأكد من مسح ${targetLabel}؟`)) return;
         try {
-            const deletePromises = sendingLogs.map(log => deleteDoc(doc(db, 'reportSendingLogs', log.id)));
+            const deletePromises = filteredSendingLogs.map(log => deleteDoc(doc(db, 'reportSendingLogs', log.id)));
             await Promise.all(deletePromises);
-            showToast("تم تفريغ السجل بالكامل بنجاح!", "success");
+            showToast("تم تفريغ السجلات المحددة بنجاح!", "success");
         } catch (err) {
             console.error("Error clearing logs:", err);
             showToast("حدث خطأ أثناء تفريغ السجل", "error");
@@ -1167,11 +1173,17 @@ export default function SendReports() {
     };
 
     const handleClearAllWebhookLogs = async () => {
-        if (!window.confirm("هل أنت متأكد من مسح جميع سجلات الاستعلام بالكامل؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+        const targetLabel = webhookFilterStatus === 'all'
+            ? "جميع سجلات الاستعلام بالكامل"
+            : webhookFilterStatus === 'sent'
+                ? "سجلات الاستعلام المقبولة (تم الرد والارسال) فقط"
+                : "سجلات الاستعلام المرفوضة فقط";
+
+        if (!window.confirm(`هل أنت متأكد من مسح ${targetLabel}؟ لا يمكن التراجع عن هذا الإجراء.`)) return;
         try {
-            const deletePromises = webhookLogs.map(log => deleteDoc(doc(db, 'webhookQueryLogs', log.id)));
+            const deletePromises = filteredWebhookLogs.map(log => deleteDoc(doc(db, 'webhookQueryLogs', log.id)));
             await Promise.all(deletePromises);
-            showToast("تم تفريغ سجل الاستعلامات بالكامل بنجاح!", "success");
+            showToast("تم تفريغ السجلات المحددة بنجاح!", "success");
         } catch (err) {
             console.error("Error clearing logs:", err);
             showToast("حدث خطأ أثناء تفريغ السجل", "error");
