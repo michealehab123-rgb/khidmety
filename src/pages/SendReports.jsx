@@ -308,6 +308,7 @@ export default function SendReports() {
     // Logs for API rate limit tracking
     const [sendingLogs, setSendingLogs] = useState([]);
     const [logsLoading, setLogsLoading] = useState(true);
+    const [sendingLogsFilterStatus, setSendingLogsFilterStatus] = useState('all'); // 'all' | 'sent' | 'failed'
 
     useEffect(() => {
         const q = query(collection(db, 'reportSendingLogs'), orderBy('timestamp', 'desc'), limit(50));
@@ -358,6 +359,33 @@ export default function SendReports() {
     const consumptionPercentage = useMemo(() => {
         return Math.min(100, (sentMessagesCount / 250) * 100);
     }, [sentMessagesCount]);
+
+    const filteredSendingLogs = useMemo(() => {
+        if (sendingLogsFilterStatus === 'all') return sendingLogs;
+        return sendingLogs.filter(log => log.status === sendingLogsFilterStatus);
+    }, [sendingLogs, sendingLogsFilterStatus]);
+
+    const handleDeleteSendingLog = async (logId) => {
+        try {
+            await deleteDoc(doc(db, 'reportSendingLogs', logId));
+            showToast("تم مسح السجل بنجاح!", "success");
+        } catch (err) {
+            console.error("Error deleting log:", err);
+            showToast("حدث خطأ أثناء مسح السجل", "error");
+        }
+    };
+
+    const handleClearAllSendingLogs = async () => {
+        if (!window.confirm("هل أنت متأكد من مسح جميع سجلات الإرسال الدوري بالكامل؟")) return;
+        try {
+            const deletePromises = sendingLogs.map(log => deleteDoc(doc(db, 'reportSendingLogs', log.id)));
+            await Promise.all(deletePromises);
+            showToast("تم تفريغ السجل بالكامل بنجاح!", "success");
+        } catch (err) {
+            console.error("Error clearing logs:", err);
+            showToast("حدث خطأ أثناء تفريغ السجل", "error");
+        }
+    };
 
     const resendMessageApi = async (log) => {
         try {
@@ -2833,13 +2861,61 @@ export default function SendReports() {
 
                     {/* Sending Logs & Retries Dashboard */}
                     <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-150 dark:border-slate-800/80 shadow-md space-y-4 animate-in fade-in duration-300">
-                        <div>
-                            <h3 className="text-base font-black text-slate-850 dark:text-slate-100 flex items-center gap-2">
-                                <Bell className="text-blue-650" size={20} /> سجل الإرسال ومراقبة قناة الاتصال (Logs & Queue Monitor)
-                            </h3>
-                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-bold">
-                                يعرض هذا السجل آخر عمليات الإرسال التي تمت أو التي فشلت، مع خيارات إعادة الإرسال الفوري لضمان وصول كافة التقارير.
-                            </p>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div>
+                                <h3 className="text-base font-black text-slate-850 dark:text-slate-100 flex items-center gap-2">
+                                    <Bell className="text-blue-650" size={20} /> سجل الإرسال ومراقبة قناة الاتصال (Logs & Queue Monitor)
+                                </h3>
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-bold">
+                                    يعرض هذا السجل آخر عمليات الإرسال التي تمت أو التي فشلت، مع خيارات إعادة الإرسال الفوري لضمان وصول كافة التقارير.
+                                </p>
+                            </div>
+                            
+                            {/* Clear and filter actions */}
+                            <div className="flex items-center gap-3 shrink-0">
+                                {sendingLogs.length > 0 && (
+                                    <button
+                                        onClick={handleClearAllSendingLogs}
+                                        className="p-2 text-rose-500 hover:text-rose-700 bg-transparent border-none cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl transition-all flex items-center gap-1 font-bold text-[10px]"
+                                        title="تفريغ السجل بالكامل"
+                                    >
+                                        <Trash2 size={13} />
+                                        تفريغ السجل
+                                    </button>
+                                )}
+                                <div className="flex gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200/40 dark:border-slate-800">
+                                    <button
+                                        onClick={() => setSendingLogsFilterStatus('all')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black border-none cursor-pointer transition-all ${
+                                            sendingLogsFilterStatus === 'all'
+                                            ? 'bg-blue-600 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-transparent'
+                                        }`}
+                                    >
+                                        الكل
+                                    </button>
+                                    <button
+                                        onClick={() => setSendingLogsFilterStatus('sent')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black border-none cursor-pointer transition-all ${
+                                            sendingLogsFilterStatus === 'sent'
+                                            ? 'bg-emerald-600 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-transparent'
+                                        }`}
+                                    >
+                                        تم الإرسال ✅
+                                    </button>
+                                    <button
+                                        onClick={() => setSendingLogsFilterStatus('failed')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black border-none cursor-pointer transition-all ${
+                                            sendingLogsFilterStatus === 'failed'
+                                            ? 'bg-rose-600 text-white shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-transparent'
+                                        }`}
+                                    >
+                                        فشل ❌
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         {logsLoading ? (
@@ -2847,10 +2923,10 @@ export default function SendReports() {
                                 <RefreshCw className="animate-spin text-blue-600" size={24} />
                                 <span className="text-xs font-bold text-slate-500">جاري تحميل سجلات الإرسال...</span>
                             </div>
-                        ) : sendingLogs.length === 0 ? (
+                        ) : filteredSendingLogs.length === 0 ? (
                             <div className="py-12 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-3">
                                 <Info className="text-slate-300 dark:text-slate-700" size={32} />
-                                <span className="text-xs font-black text-slate-400 dark:text-slate-500 font-bold">لا توجد سجلات إرسال مسجلة اليوم حتى الآن.</span>
+                                <span className="text-xs font-black text-slate-400 dark:text-slate-500 font-bold">لا توجد سجلات مطابقة للتصفية حالياً.</span>
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
@@ -2862,10 +2938,11 @@ export default function SendReports() {
                                             <th className="pb-3 text-center">التوقيت</th>
                                             <th className="pb-3 text-center">الحالة</th>
                                             <th className="pb-3 text-center">الإجراءات</th>
+                                            <th className="pb-3 pl-2 text-center">مسح</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                                        {sendingLogs.map(log => (
+                                        {filteredSendingLogs.map(log => (
                                             <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10">
                                                 <td className="py-3.5">
                                                     <div className="font-black text-slate-800 dark:text-slate-200">{log.recipientName}</div>
@@ -2910,16 +2987,26 @@ export default function SendReports() {
                                                             إرسال يدوي 💬
                                                         </button>
                                                         <button
-                                                            type="button"
-                                                            onClick={() => resendMessageApi(log)}
-                                                            className="px-2 py-1 bg-blue-550 hover:bg-blue-600 text-white font-black rounded-lg text-[10px] cursor-pointer border-none shadow-sm active:scale-95"
-                                                            title="إعادة المحاولة تلقائياً عبر API"
-                                                        >
-                                                            إعادة عبر API 🚀
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                                             type="button"
+                                                             onClick={() => resendMessageApi(log)}
+                                                             className="px-2 py-1 bg-blue-550 hover:bg-blue-600 text-white font-black rounded-lg text-[10px] cursor-pointer border-none shadow-sm active:scale-95"
+                                                             title="إعادة المحاولة تلقائياً عبر API"
+                                                         >
+                                                             إعادة عبر API 🚀
+                                                         </button>
+                                                     </div>
+                                                 </td>
+                                                 <td className="py-3.5 pl-2 text-center">
+                                                     <button
+                                                         type="button"
+                                                         onClick={() => handleDeleteSendingLog(log.id)}
+                                                         className="p-1.5 text-slate-400 hover:text-rose-600 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border-none cursor-pointer transition-all"
+                                                         title="مسح من السجل"
+                                                     >
+                                                         <Trash2 size={13} />
+                                                     </button>
+                                                 </td>
+                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
