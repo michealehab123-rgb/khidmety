@@ -1463,7 +1463,7 @@ export default function SendReports() {
             </header>
 
             {/* Tab Selection */}
-            {(isGenAdmin || isStageAdmin) && (
+            {isGenAdmin && (
                 <div className="flex border-b border-slate-200 dark:border-slate-800 mb-6 gap-2">
                     <button
                         onClick={() => setActiveTab('students')}
@@ -2035,7 +2035,7 @@ export default function SendReports() {
             )}
 
             {/* Admin Summary Tab Content */}
-            {activeTab === 'admin_summary' && (
+            {activeTab === 'admin_summary' && isGenAdmin && (
                 <div className="space-y-6 animate-in fade-in duration-300">
                     <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl shadow-md border border-slate-150 dark:border-slate-800/80 space-y-6">
                         <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -2495,7 +2495,7 @@ export default function SendReports() {
                 </div>
             )}
 
-            {activeTab === 'periodic_schedule' && (
+            {activeTab === 'periodic_schedule' && isGenAdmin && (
                 <div className="space-y-6 animate-in fade-in duration-300">
                     {/* Header Banner */}
                     <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-150 dark:border-slate-800/80 shadow-md">
@@ -2929,7 +2929,7 @@ export default function SendReports() {
                 </div>
             )}
 
-            {activeTab === 'webhook_bot' && (
+            {activeTab === 'webhook_bot' && isGenAdmin && (
                 <div className="space-y-6 animate-in fade-in duration-300">
                     {/* Header Banner */}
                     <div className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl border border-slate-150 dark:border-slate-800/80 shadow-md">
