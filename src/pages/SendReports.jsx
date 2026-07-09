@@ -624,7 +624,7 @@ export default function SendReports() {
 
     // Helper to compile weekly/monthly admin summary
     const compileAdminSummary = () => {
-        const targetStage = selectedStage || servant?.assignedStage || '';
+        const targetStage = selectedStages[0] || servant?.assignedStage || '';
         const targetClasses = selectedClassesList;
         const includeStudents = reportContentScope === 'both' || reportContentScope === 'students';
         const includeServants = reportContentScope === 'both' || reportContentScope === 'servants';
