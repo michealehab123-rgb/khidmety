@@ -510,9 +510,9 @@ async function runScheduledNotificationsAndReports(log) {
         const schTime = schData.time || '20:00';
         
         if (scheduleMode === 'one_time') {
-          isTimeToRun = schData.date === todayCairoStr && schTime === currentCairoTimeStr;
+          isTimeToRun = schData.date === todayCairoStr && currentCairoTimeStr >= schTime;
         } else {
-          isTimeToRun = schData.days && schData.days.includes(currentDayKey) && schTime === currentCairoTimeStr;
+          isTimeToRun = schData.days && schData.days.includes(currentDayKey) && currentCairoTimeStr >= schTime;
         }
         
         if (!isTimeToRun) {
