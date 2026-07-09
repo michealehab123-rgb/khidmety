@@ -444,8 +444,10 @@ export default function SendReports() {
                 type: 'students',
                 ...studentsSchedule,
                 filters: {
-                    selectedStage,
-                    selectedClass,
+                    selectedStage: selectedStagesTab1[0] || 'all',
+                    selectedClass: selectedClassesTab1[0] || 'all',
+                    selectedStages: selectedStagesTab1,
+                    selectedClasses: selectedClassesTab1,
                     reportType,
                     selectedMonth,
                     selectedYear,
@@ -1043,15 +1045,15 @@ export default function SendReports() {
         if (authLoading || !servant) return;
         
         if (isClassServant) {
-            if (servant.assignedStage && selectedStage !== servant.assignedStage) {
-                setSelectedStage(servant.assignedStage);
+            if (servant.assignedStage && !selectedStagesTab1.includes(servant.assignedStage)) {
+                setSelectedStagesTab1([servant.assignedStage]);
             }
-            if (servant.assignedClass && selectedClass !== servant.assignedClass) {
-                setSelectedClass(servant.assignedClass);
+            if (servant.assignedClass && !selectedClassesTab1.includes(servant.assignedClass)) {
+                setSelectedClassesTab1([servant.assignedClass]);
             }
         } else if (isStageAdmin) {
-            if (servant.assignedStage && selectedStage !== servant.assignedStage) {
-                setSelectedStage(servant.assignedStage);
+            if (servant.assignedStage && !selectedStagesTab1.includes(servant.assignedStage)) {
+                setSelectedStagesTab1([servant.assignedStage]);
             }
         }
     }, [authLoading, servant, isClassServant, isStageAdmin]);
@@ -1219,18 +1221,7 @@ export default function SendReports() {
         }
     };
 
-    // Determine target classes based on Stage selection & permissions
-    const availableClasses = useMemo(() => {
-        if (!selectedStage || selectedStage === 'all') return [];
-        const classes = STAGE_CLASS_MAP[selectedStage] || [];
-        
-        // If class servant, restrict to their class(es)
-        if (isClassServant && servant) {
-            const allowed = [servant.assignedClass, ...(authorizedClasses || [])].filter(Boolean);
-            return classes.filter(c => allowed.includes(c));
-        }
-        return classes;
-    }, [selectedStage, isClassServant, servant, authorizedClasses]);
+
 
     // Helper to get available classes for selected stages in Tab 1
     const allAvailableClassesTab1 = useMemo(() => {
