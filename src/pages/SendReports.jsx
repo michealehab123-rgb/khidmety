@@ -187,14 +187,28 @@ export default function SendReports() {
     const isGenAdmin = isGeneralAdmin && !isStageAdmin;
     const isClassServant = isServant && !isStageAdmin;
 
-    // Filter states
-    const [selectedStage, setSelectedStage] = useState(() => {
-        return localStorage.getItem('reports_filter_stage') || servant?.assignedStage || '';
+    // Filter states (tab 1 multi-select arrays)
+    const [selectedStagesTab1, setSelectedStagesTab1] = useState(() => {
+        const saved = localStorage.getItem('reports_filter_stages_t1');
+        if (saved) {
+            try { return JSON.parse(saved); } catch (e) {}
+        }
+        if (servant?.assignedStage) return [servant.assignedStage];
+        return ['ابتدائي', 'اعدادي', 'ثانوي'];
     });
-    const [selectedClass, setSelectedClass] = useState(() => {
-        return localStorage.getItem('reports_filter_class') || servant?.assignedClass || 'all';
+    const [selectedClassesTab1, setSelectedClassesTab1] = useState(() => {
+        const saved = localStorage.getItem('reports_filter_classes_t1');
+        if (saved) {
+            try { return JSON.parse(saved); } catch (e) {}
+        }
+        if (isClassServant && servant?.assignedClass) return [servant.assignedClass];
+        return [];
     });
     const [reportType, setReportType] = useState('monthly'); // 'monthly' | 'weekly'
+
+    // Checkboxes selection for specific students
+    const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+    const [bulkSendIndex, setBulkSendIndex] = useState(-1); // -1 means inactive
     
     // Date/Time States
     const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
@@ -580,9 +594,9 @@ export default function SendReports() {
 
     // Save filters to localStorage
     useEffect(() => {
-        if (selectedStage) localStorage.setItem('reports_filter_stage', selectedStage);
-        if (selectedClass) localStorage.setItem('reports_filter_class', selectedClass);
-    }, [selectedStage, selectedClass]);
+        localStorage.setItem('reports_filter_stages_t1', JSON.stringify(selectedStagesTab1));
+        localStorage.setItem('reports_filter_classes_t1', JSON.stringify(selectedClassesTab1));
+    }, [selectedStagesTab1, selectedClassesTab1]);
 
     // Sync templates globally from Firestore
     useEffect(() => {
@@ -1218,20 +1232,35 @@ export default function SendReports() {
         return classes;
     }, [selectedStage, isClassServant, servant, authorizedClasses]);
 
+    // Helper to get available classes for selected stages in Tab 1
+    const allAvailableClassesTab1 = useMemo(() => {
+        return selectedStagesTab1.flatMap(st => STAGE_CLASS_MAP[st] || []);
+    }, [selectedStagesTab1]);
+
+    const allowedClassesTab1 = useMemo(() => {
+        if (isClassServant && servant) {
+            const allowed = [servant.assignedClass, ...(authorizedClasses || [])].filter(Boolean);
+            return allAvailableClassesTab1.filter(c => allowed.includes(c));
+        }
+        return allAvailableClassesTab1;
+    }, [allAvailableClassesTab1, isClassServant, servant, authorizedClasses]);
+
     // Apply secondary filters (Stage, Class, Search) in memory
     const filteredStudents = useMemo(() => {
         let list = [...students];
         
-        // Filter by stage (since query loads all stages for GenAdmin)
-        if (selectedStage && selectedStage !== 'all') {
-            list = list.filter(s => s.schoolGrade === selectedStage);
+        // Filter by stage (multi-select)
+        if (selectedStagesTab1.length > 0) {
+            list = list.filter(s => selectedStagesTab1.includes(s.schoolGrade));
+        } else {
+            return []; // No stages selected, show empty
         }
         
-        // Filter by class
-        if (selectedClass && selectedClass !== 'all') {
-            list = list.filter(s => s.assignedClass === selectedClass);
+        // Filter by class (multi-select)
+        if (selectedClassesTab1.length > 0) {
+            list = list.filter(s => selectedClassesTab1.includes(s.assignedClass));
         } else if (isClassServant && servant) {
-            // Lock to authorized classes if "all" is somehow selected or empty
+            // Lock to authorized classes
             const allowed = [servant.assignedClass, ...(authorizedClasses || [])].filter(Boolean);
             list = list.filter(s => allowed.includes(s.assignedClass));
         }
@@ -1248,7 +1277,7 @@ export default function SendReports() {
         
         // Sort alphabetically
         return list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
-    }, [students, selectedStage, selectedClass, searchQuery, isClassServant, servant, authorizedClasses]);
+    }, [students, selectedStagesTab1, selectedClassesTab1, searchQuery, isClassServant, servant, authorizedClasses]);
 
     // Helper to get formatted traits for a student in this month/week
     const getStudentTraits = (studentId) => {
@@ -1367,6 +1396,33 @@ export default function SendReports() {
         const url = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`;
         window.open(url, '_blank');
     };
+
+    // Copy selected reports
+    const handleCopySelectedReports = () => {
+        const selectedSts = filteredStudents.filter(st => selectedStudentIds.includes(st.id));
+        const allTexts = selectedSts.map(st => {
+            const msg = getCompiledMessage(st);
+            return `*${st.name}*:\n${msg}`;
+        }).join('\n\n-----------------------------\n\n');
+        
+        navigator.clipboard.writeText(allTexts)
+            .then(() => {
+                showToast(`تم نسخ تقارير ${selectedSts.length} مخدوم دفعة واحدة! 📋`, 'success');
+            })
+            .catch(err => {
+                console.error("Failed to copy:", err);
+                showToast("فشل نسخ النصوص المجمعة", "error");
+            });
+    };
+
+    // Bulk Send completion watcher
+    useEffect(() => {
+        if (bulkSendIndex >= 0 && bulkSendIndex >= selectedStudentIds.length) {
+            setBulkSendIndex(-1);
+            setSelectedStudentIds([]);
+            showToast("تم إرسال كافة تقارير المخدومين المحددين بنجاح! 🎉", "success");
+        }
+    }, [bulkSendIndex, selectedStudentIds]);
 
     // Save student notes to Firestore
     const handleSaveNotes = async (studentId, notesValue) => {
@@ -1642,39 +1698,90 @@ export default function SendReports() {
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    {/* Stage Dropdown */}
-                    <div className="space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">قائمة المراحل (Stage)</label>
-                        <select
-                            value={selectedStage}
-                            disabled={!isGenAdmin}
-                            onChange={(e) => {
-                                setSelectedStage(e.target.value);
-                                setSelectedClass('all'); // reset class on stage change
-                            }}
-                            className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 transition-colors"
-                        >
-                            {isGenAdmin && <option value="all">كل المراحل</option>}
-                            <option value="ابتدائي">مرحلة ابتدائي</option>
-                            <option value="اعدادي">مرحلة إعدادي</option>
-                            <option value="ثانوي">مرحلة ثانوي</option>
-                        </select>
+                    {/* Stage Checkboxes/Pills */}
+                    <div className="space-y-1.5 col-span-1 md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">اختر المراحل المطلوبة (Stage Selection)</label>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                            {['ابتدائي', 'اعدادي', 'ثانوي'].map(stage => {
+                                const isDisabled = !isGenAdmin;
+                                const isSelected = selectedStagesTab1.includes(stage);
+                                return (
+                                    <button
+                                        key={stage}
+                                        type="button"
+                                        disabled={isDisabled}
+                                        onClick={() => {
+                                            if (isSelected) {
+                                                setSelectedStagesTab1(prev => prev.filter(s => s !== stage));
+                                            } else {
+                                                setSelectedStagesTab1(prev => [...prev, stage]);
+                                            }
+                                            setSelectedClassesTab1([]); // Reset classes
+                                        }}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-black cursor-pointer transition-all border ${
+                                            isSelected 
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
+                                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-850'
+                                        } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                    >
+                                        {isSelected ? "✅ " : "⬜ "} {stage}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
-                    {/* Class Dropdown */}
-                    <div className="space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">قائمة الفصول (Class)</label>
-                        <select
-                            value={selectedClass}
-                            disabled={!selectedStage || selectedStage === 'all' || (isClassServant && availableClasses.length <= 1)}
-                            onChange={(e) => setSelectedClass(e.target.value)}
-                            className="w-full p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 transition-colors disabled:opacity-60"
-                        >
-                            <option value="all">كل الفصول</option>
-                            {availableClasses.map(cls => (
-                                <option key={cls} value={cls}>{cls}</option>
-                            ))}
-                        </select>
+                    {/* Class Checkboxes/Pills */}
+                    <div className="space-y-1.5 col-span-1 md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">اختر الفصول المطلوبة (Class Selection)</label>
+                        <div className="flex flex-wrap gap-2 pt-1 max-h-28 overflow-y-auto pr-1 font-bold">
+                            {allowedClassesTab1.length === 0 ? (
+                                <span className="text-xs font-bold text-slate-450 dark:text-slate-550 pt-2">يرجى تحديد مرحلة أولاً لمشاهدة فصولها</span>
+                            ) : (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (selectedClassesTab1.length === allowedClassesTab1.length) {
+                                                setSelectedClassesTab1([]);
+                                            } else {
+                                                setSelectedClassesTab1(allowedClassesTab1);
+                                            }
+                                        }}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-all border ${
+                                            selectedClassesTab1.length === allowedClassesTab1.length
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                            : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-850'
+                                        }`}
+                                    >
+                                        {selectedClassesTab1.length === allowedClassesTab1.length ? "✅ الكل" : "⬜ تحديد الكل"}
+                                    </button>
+                                    {allowedClassesTab1.map(cls => {
+                                        const isSelected = selectedClassesTab1.includes(cls);
+                                        return (
+                                            <button
+                                                key={cls}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (isSelected) {
+                                                        setSelectedClassesTab1(prev => prev.filter(c => c !== cls));
+                                                    } else {
+                                                        setSelectedClassesTab1(prev => [...prev, cls]);
+                                                    }
+                                                }}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer transition-all border ${
+                                                    isSelected
+                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                                    : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-850'
+                                                }`}
+                                            >
+                                                {isSelected ? "✅ " : "⬜ "} {cls}
+                                            </button>
+                                        );
+                                    })}
+                                </>
+                            )}
+                        </div>
                     </div>
 
                     {/* Report Type */}
@@ -1929,6 +2036,41 @@ export default function SendReports() {
 
             {/* Data Grid Section */}
             <main className="bg-white dark:bg-[#1e293b] rounded-3xl shadow-md border border-slate-150 dark:border-slate-800/80 overflow-hidden">
+                {/* Bulk Actions Header */}
+                {selectedStudentIds.length > 0 && (
+                    <div className="bg-blue-50 dark:bg-blue-950/20 px-6 py-4 border-b border-blue-150 dark:border-blue-900/30 flex flex-wrap justify-between items-center gap-4 animate-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-center gap-2">
+                            <span className="bg-blue-600 text-white font-black text-xs px-2.5 py-1 rounded-lg">
+                                {selectedStudentIds.length} مخدوم محدد
+                            </span>
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-350">
+                                إجراءات مجمعة على المخدومين المحددين:
+                            </span>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleCopySelectedReports}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl border-none cursor-pointer flex items-center gap-1.5 transition-all shadow active:scale-95"
+                            >
+                                <Copy size={14} /> نسخ تقارير المحددين دفعة واحدة
+                            </button>
+                            <button
+                                onClick={() => setBulkSendIndex(0)}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl border-none cursor-pointer flex items-center gap-1.5 transition-all shadow active:scale-95"
+                            >
+                                <ExternalLink size={14} /> إرسال متتالي بالواتساب 💬
+                            </button>
+                            <button
+                                onClick={() => setSelectedStudentIds([])}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl border-none cursor-pointer transition-all active:scale-95"
+                            >
+                                إلغاء التحديد
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {studentsLoading || pointsLoading ? (
                     <div className="py-24 flex flex-col items-center justify-center gap-4">
                         <RefreshCw className="animate-spin text-blue-600" size={40} />
@@ -1944,6 +2086,20 @@ export default function SendReports() {
                         <table className="w-full text-right border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-[#0f172a]/60 text-slate-500 dark:text-slate-400 text-xs font-black border-b border-slate-100 dark:border-slate-800">
+                                    <th className="p-4 w-12 text-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={filteredStudents.length > 0 && selectedStudentIds.length === filteredStudents.length}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedStudentIds(filteredStudents.map(st => st.id));
+                                                } else {
+                                                    setSelectedStudentIds([]);
+                                                }
+                                            }}
+                                            className="w-4 h-4 cursor-pointer accent-blue-600 rounded"
+                                        />
+                                    </th>
                                     <th className="p-4 w-12 text-center">م</th>
                                     <th className="p-4 w-48">بيانات المخدوم</th>
                                     <th className="p-4 w-56">الرقم المستهدف</th>
@@ -1965,7 +2121,21 @@ export default function SendReports() {
                                             className="border-b border-slate-100 dark:border-slate-800/80 hover:bg-slate-50/40 dark:hover:bg-slate-900/10 transition-colors"
                                         >
                                             {/* Index number */}
-                                            <td className="p-4 text-center font-bold text-slate-400 text-sm">{idx + 1}</td>
+                                            <td className="p-4 text-center">
+                                                 <input
+                                                     type="checkbox"
+                                                     checked={selectedStudentIds.includes(st.id)}
+                                                     onChange={(e) => {
+                                                         if (e.target.checked) {
+                                                             setSelectedStudentIds(prev => [...prev, st.id]);
+                                                         } else {
+                                                             setSelectedStudentIds(prev => prev.filter(id => id !== st.id));
+                                                         }
+                                                     }}
+                                                     className="w-4 h-4 cursor-pointer accent-blue-600 rounded"
+                                                 />
+                                             </td>
+                                             <td className="p-4 text-center font-bold text-slate-400 text-sm">{idx + 1}</td>
                                             
                                             {/* Student info */}
                                             <td className="p-4 space-y-2">
@@ -3044,6 +3214,92 @@ export default function SendReports() {
                     </div>
                 </div>
             )}
+
+            {/* Bulk Send Wizard Modal Overlay */}
+            {bulkSendIndex >= 0 && bulkSendIndex < selectedStudentIds.length && (() => {
+                const currentStudentId = selectedStudentIds[bulkSendIndex];
+                const student = students.find(s => s.id === currentStudentId);
+                if (!student) return null;
+                
+                const phoneOpts = getPhoneOptions(student);
+                const activePhone = getSelectedPhone(student);
+                const compiledMsg = getCompiledMessage(student);
+                
+                return (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+                        <div className="bg-white dark:bg-[#1e293b] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden animate-in zoom-in-95 duration-300">
+                            {/* Header */}
+                            <div className="bg-blue-600 px-6 py-4 text-white flex justify-between items-center">
+                                <div className="space-y-0.5 text-right">
+                                    <h3 className="font-black text-sm">مساعد الإرسال المتتالي بالواتساب 💬</h3>
+                                    <p className="text-[10px] text-blue-100 font-bold">يساعدك على إرسال الرسائل للمحددين واحدة تلو الأخرى بسهولة</p>
+                                </div>
+                                <button 
+                                    onClick={() => setBulkSendIndex(-1)}
+                                    className="bg-white/10 hover:bg-white/20 text-white rounded-full p-1 border-none cursor-pointer transition-all"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="p-6 space-y-4 text-right">
+                                <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                                    <span>مخدوم {bulkSendIndex + 1} من {selectedStudentIds.length}</span>
+                                    <span className="bg-blue-600 text-white px-2 py-0.5 rounded-lg text-[10px] font-black">
+                                        {Math.round(((bulkSendIndex) / selectedStudentIds.length) * 100)}% مكتمل
+                                    </span>
+                                </div>
+                                
+                                <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-1">
+                                    <div className="text-xs text-slate-450 dark:text-slate-500 font-bold">اسم المخدوم المستهدف:</div>
+                                    <div className="font-black text-slate-800 dark:text-white text-base">{student.name}</div>
+                                    <div className="text-xs text-blue-600 dark:text-blue-400 font-bold mt-1">📞 الرقم: {activePhone || 'لا يوجد رقم مسجل!'}</div>
+                                </div>
+                                
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">معاينة نص الرسالة:</label>
+                                    <textarea
+                                        value={compiledMsg}
+                                        onChange={(e) => setEditedMessages(prev => ({ ...prev, [student.id]: e.target.value }))}
+                                        rows={6}
+                                        className="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-800 dark:text-slate-100 outline-none text-xs leading-relaxed focus:ring-2 focus:ring-blue-500/30"
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* Footer Actions */}
+                            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center gap-3">
+                                <button
+                                    onClick={() => setBulkSendIndex(-1)}
+                                    className="px-4 py-2.5 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-655 dark:text-slate-400 font-bold text-xs rounded-xl border-none cursor-pointer transition-all"
+                                >
+                                    إلغاء المساعد
+                                </button>
+                                
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setBulkSendIndex(prev => prev + 1)}
+                                        className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl border-none cursor-pointer transition-all"
+                                    >
+                                        تخطي ➡️
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            handleWhatsApp(student, compiledMsg);
+                                            setBulkSendIndex(prev => prev + 1);
+                                        }}
+                                        disabled={!activePhone}
+                                        className="px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-xs rounded-xl border-none cursor-pointer transition-all shadow-md flex items-center gap-1.5"
+                                    >
+                                        <ExternalLink size={14} /> فتح واتساب وإرسال 💬
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {activeTab === 'webhook_bot' && isGenAdmin && (
                 <div className="space-y-6 animate-in fade-in duration-300">
