@@ -1008,19 +1008,53 @@ const generateWeeksBackend = (count, nowInEgypt) => {
 };
 
 const getRecipientPhoneBackend = (student) => {
-    const p = student.preferredPhoneReceiver || 'father';
-    let rawPhone = '';
-    if (p === 'student') rawPhone = student.phone;
-    else if (p === 'mother') rawPhone = student.motherPhone;
-    else rawPhone = student.fatherPhone;
+    const options = [];
     
-    if (!rawPhone) {
-        rawPhone = student.fatherPhone || student.motherPhone || student.phone;
+    // Parents contacts
+    (student.parentsContacts || []).forEach(contact => {
+        if (contact.phone) {
+            options.push({
+                value: contact.phone,
+                type: contact.relation
+            });
+        }
+    });
+
+    // Student's own phones
+    (student.phones || []).forEach(phone => {
+        if (phone) {
+            options.push({
+                value: phone,
+                type: 'student'
+            });
+        }
+    });
+
+    if (options.length === 0) return null;
+
+    let targetPhone = '';
+    const isSecondary = student.schoolGrade === 'ثانوي';
+    
+    if (isSecondary) {
+        const studentPhone = options.find(o => o.type === 'student');
+        if (studentPhone) targetPhone = studentPhone.value;
     }
-    
-    if (!rawPhone) return null;
-    
-    let cleanPhone = rawPhone.replace(/\D/g, '');
+
+    if (!targetPhone) {
+        const fatherPhone = options.find(o => o.type === 'father');
+        if (fatherPhone) targetPhone = fatherPhone.value;
+    }
+
+    if (!targetPhone) {
+        const motherPhone = options.find(o => o.type === 'mother');
+        if (motherPhone) targetPhone = motherPhone.value;
+    }
+
+    if (!targetPhone) {
+        targetPhone = options[0].value;
+    }
+
+    let cleanPhone = targetPhone.replace(/\D/g, '');
     if (cleanPhone.startsWith('01')) {
         cleanPhone = '20' + cleanPhone.substring(1);
     } else if (cleanPhone.startsWith('+')) {
