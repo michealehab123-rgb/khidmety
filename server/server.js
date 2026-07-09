@@ -502,8 +502,8 @@ async function runScheduledNotificationsAndReports(log) {
         
         const reportType = schData.filters?.reportType || 'monthly';
         const whatsappTemplateName = reportType === 'monthly'
-          ? (templateConfig.whatsappTemplateNameMonthly || 'student_monthly_report')
-          : (templateConfig.whatsappTemplateNameWeekly || 'student_weekly_report');
+          ? (templateConfig.whatsappTemplateNameMonthly || 'student_report_summary')
+          : (templateConfig.whatsappTemplateNameWeekly || 'student_report_summary');
         
         let isTimeToRun = false;
         const scheduleMode = schData.scheduleMode || 'recurring';
@@ -641,14 +641,36 @@ async function runScheduledNotificationsAndReports(log) {
                 return;
               }
               
-              const variables = compileStudentVariablesBackend(student, filters, pointsHistoryList, nowInEgypt);
+              const baseVars = compileStudentVariablesBackend(student, filters, pointsHistoryList, nowInEgypt);
+              
+              // Build parameters specifically for the Meta Template
+              let templateVars = [...baseVars];
+              if (whatsappTemplateName === 'student_report_summary') {
+                // Meta template student_report_summary expects 8 parameters:
+                // 1: stageClass, 2: genderLabel, 3: firstName, 4: massCount, 5: serviceCount, 6: traits, 7: confessionStatus, 8: notes
+                const studentLogs = pointsHistoryList.filter(log => log.studentId === student.id && (log.amount || 0) > 0);
+                const reasons = studentLogs.map(log => log.reason).filter(Boolean);
+                const uniqueReasons = [...new Set(reasons)];
+                const traits = uniqueReasons.length > 0 ? uniqueReasons.join('، ') : "الالتزام وحسن السلوك";
+                
+                templateVars = [
+                  baseVars[0], // stageClass
+                  baseVars[1], // genderLabel
+                  baseVars[2], // firstName
+                  baseVars[3], // massCount
+                  baseVars[4], // serviceCount
+                  traits,      // traits
+                  baseVars[5], // confessionStatus
+                  baseVars[6]  // notes
+                ];
+              }
               
               const success = await sendWhatsAppTemplateMessage(
                 accessToken,
                 phoneNumberId,
                 parentPhone,
                 whatsappTemplateName,
-                variables
+                templateVars
               );
               
               await db.collection('reportSendingLogs').add({
