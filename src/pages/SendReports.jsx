@@ -1870,7 +1870,8 @@ export default function SendReports() {
             </section>
 
             {/* Periodic Alerts / Scheduled Auto-Sending Card */}
-            <section className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl shadow-md border border-slate-150 dark:border-slate-800/80 mb-8 space-y-6">
+            {isGenAdmin && (
+                <section className="bg-white dark:bg-[#1e293b] p-6 rounded-3xl shadow-md border border-slate-150 dark:border-slate-800/80 mb-8 space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
                         <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -2024,6 +2025,7 @@ export default function SendReports() {
                     </div>
                 )}
             </section>
+            )}
 
             {/* Data Grid Section */}
             <main className="bg-white dark:bg-[#1e293b] rounded-3xl shadow-md border border-slate-150 dark:border-slate-800/80 overflow-hidden">
