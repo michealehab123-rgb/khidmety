@@ -1466,6 +1466,7 @@ export default function SendReports() {
     // Get default phone selection based on stage/availability
     const getSelectedPhone = (student) => {
         if (selectedPhones[student.id]) return selectedPhones[student.id];
+        if (student.preferredPhone) return student.preferredPhone;
         
         const options = getPhoneOptions(student);
         if (options.length === 0) return '';
@@ -2212,6 +2213,9 @@ export default function SendReports() {
                                                                 localStorage.setItem('reports_selected_phones', JSON.stringify(next));
                                                                 return next;
                                                             });
+                                                            // Save to Firestore for cloud periodic cron
+                                                            updateDoc(doc(db, 'students', st.id), { preferredPhone: val })
+                                                                .catch(err => console.error("Failed to update preferredPhone in DB:", err));
                                                         }}
                                                         className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-800 dark:text-slate-100 outline-none text-xs leading-normal"
                                                     >
