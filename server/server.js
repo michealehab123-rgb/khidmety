@@ -1446,6 +1446,39 @@ app.post('/api/webhook', async (req, res) => {
     const entry = body.entry?.[0];
     const change = entry?.changes?.[0];
     const value = change?.value;
+
+    // Handle message status updates (sent, delivered, read, failed)
+    if (value && value.statuses && value.statuses.length > 0) {
+      const statusObj = value.statuses[0];
+      const recipient = statusObj.recipient_id;
+      const status = statusObj.status;
+      console.log(`[Webhook Status] Message ${statusObj.id} status changed to: ${status} for recipient: ${recipient}`);
+      
+      if (status === 'failed' && statusObj.errors) {
+        console.error(`[Webhook Status ❌] Delivery failed for message ${statusObj.id} to ${recipient}:`, statusObj.errors);
+        
+        try {
+          const logsSnap = await db.collection('reportSendingLogs')
+            .where('recipientPhone', '==', recipient)
+            .orderBy('timestamp', 'desc')
+            .limit(1)
+            .get();
+            
+          if (!logsSnap.empty) {
+            const docRef = logsSnap.docs[0].ref;
+            const errDetail = statusObj.errors.map(e => `[${e.code}] ${e.message} - ${e.error_data?.details || ''}`).join(', ');
+            await docRef.update({
+              status: 'failed',
+              errorMessage: `فشل تسليم الرسالة من طرف واتساب: ${errDetail}`
+            });
+            console.log(`[Webhook Status] Updated reportSendingLog document ${docRef.id} with delivery failure detail.`);
+          }
+        } catch (logErr) {
+          console.error('[Webhook Status] Error updating reportSendingLogs:', logErr);
+        }
+      }
+      return;
+    }
     
     if (!value || !value.messages || value.messages.length === 0) {
       return;
