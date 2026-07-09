@@ -239,7 +239,14 @@ export default function SendReports() {
     const [showTemplateEditor, setShowTemplateEditor] = useState(false);
     
     // Row-specific state maps
-    const [selectedPhones, setSelectedPhones] = useState({}); // { studentId: phoneNum }
+    const [selectedPhones, setSelectedPhones] = useState(() => {
+        try {
+            const saved = localStorage.getItem('reports_selected_phones');
+            return saved ? JSON.parse(saved) : {};
+        } catch (e) {
+            return {};
+        }
+    }); // { studentId: phoneNum }
     const [editedMessages, setEditedMessages] = useState({}); // { studentId: text }
     const [studentGenders, setStudentGenders] = useState({}); // { studentId: 'boy'|'girl' }
     const [studentNotes, setStudentNotes] = useState({}); // { studentId: notesText }
@@ -2198,7 +2205,14 @@ export default function SendReports() {
                                                 ) : (
                                                     <select
                                                         value={activePhone}
-                                                        onChange={(e) => setSelectedPhones(prev => ({ ...prev, [st.id]: e.target.value }))}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setSelectedPhones(prev => {
+                                                                const next = { ...prev, [st.id]: val };
+                                                                localStorage.setItem('reports_selected_phones', JSON.stringify(next));
+                                                                return next;
+                                                            });
+                                                        }}
                                                         className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-800 dark:text-slate-100 outline-none text-xs leading-normal"
                                                     >
                                                         {phoneOpts.map(opt => (
