@@ -1370,7 +1370,7 @@ export default function SendReports() {
 
     // Open WhatsApp
     const handleWhatsApp = (student, text) => {
-        const phone = selectedPhones[student.id] || getPhoneOptions(student)[0]?.value;
+        const phone = getSelectedPhone(student);
         if (!phone) {
             showToast("لا يوجد رقم هاتف محدد للإرسال إليه!", "warning");
             return;
