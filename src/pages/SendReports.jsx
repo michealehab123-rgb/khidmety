@@ -1584,10 +1584,10 @@ export default function SendReports() {
 
             {/* Tab Selection */}
             {isGenAdmin && (
-                <div className="flex border-b border-slate-200 dark:border-slate-800 mb-6 gap-2">
+                <div className="flex border-b border-slate-200 dark:border-slate-800 mb-6 gap-2 overflow-x-auto whitespace-nowrap scrollbar-none">
                     <button
                         onClick={() => setActiveTab('students')}
-                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none ${
+                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none flex-shrink-0 ${
                             activeTab === 'students'
                             ? 'border-blue-600 text-blue-600 dark:text-blue-400 border-b-solid font-black'
                             : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
@@ -1597,7 +1597,7 @@ export default function SendReports() {
                     </button>
                     <button
                         onClick={() => setActiveTab('admin_summary')}
-                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none ${
+                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none flex-shrink-0 ${
                             activeTab === 'admin_summary'
                             ? 'border-blue-600 text-blue-600 dark:text-blue-400 border-b-solid font-black'
                             : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
@@ -1607,7 +1607,7 @@ export default function SendReports() {
                     </button>
                     <button
                         onClick={() => setActiveTab('periodic_schedule')}
-                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none ${
+                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none flex-shrink-0 ${
                             activeTab === 'periodic_schedule'
                             ? 'border-blue-600 text-blue-600 dark:text-blue-400 border-b-solid font-black'
                             : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
@@ -1617,7 +1617,7 @@ export default function SendReports() {
                     </button>
                     <button
                         onClick={() => setActiveTab('webhook_bot')}
-                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none ${
+                        className={`py-3 px-6 font-bold text-sm border-b-2 transition-all cursor-pointer bg-transparent border-none flex-shrink-0 ${
                             activeTab === 'webhook_bot'
                             ? 'border-blue-600 text-blue-600 dark:text-blue-400 border-b-solid font-black'
                             : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
