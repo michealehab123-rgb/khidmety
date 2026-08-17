@@ -1566,11 +1566,6 @@ app.get('/api/test-debug', async (req, res) => {
   res.json(status);
 });
 
-// Global In-Memory Message Aggregator Buffer (Debounce 6.0s per sender)
-const userMessageBuffers = new Map();
-const processedMessageIds = new Set();
-const MESSAGE_BUFFER_DELAY_MS = 6000;
-
 // Webhook Listener (POST /api/webhook)
 app.post('/api/webhook', async (req, res) => {
   // Return a 200 OK immediately to Meta to acknowledge receipt and prevent retries
@@ -1638,19 +1633,20 @@ app.post('/api/webhook', async (req, res) => {
       return;
     }
 
+    // Deduplication via Firestore: prevent double-processing of the same message ID
     const messageId = message.id;
     if (messageId) {
-      if (processedMessageIds.has(messageId)) {
+      const dedupRef = db.collection('webhookDedupLogs').doc(messageId);
+      const dedupSnap = await dedupRef.get();
+      if (dedupSnap.exists) {
         console.log(`[Webhook Bot ⚠️] Ignoring duplicate webhook delivery for message ID: ${messageId}`);
         return;
       }
-      processedMessageIds.add(messageId);
-      setTimeout(() => processedMessageIds.delete(messageId), 5 * 60 * 1000);
+      // Mark as processed (TTL: auto-delete via Firestore TTL policy or we do manual cleanup elsewhere)
+      await dedupRef.set({ processedAt: new Date().toISOString() });
     }
 
-    const rawSenderPhone = message.from; 
-    const cleanSenderPhone = (rawSenderPhone || '').replace(/\D/g, '');
-    const bufferKey = cleanSenderPhone || rawSenderPhone;
+    const senderPhone = message.from;
     const messageText = (message.text?.body || '').trim();
 
     if (!messageText) return;
@@ -1665,44 +1661,16 @@ app.post('/api/webhook', async (req, res) => {
       return;
     }
 
-    // Initialize buffer for sender if not present
-    if (!userMessageBuffers.has(bufferKey)) {
-      userMessageBuffers.set(bufferKey, {
-        rawSenderPhone: rawSenderPhone,
-        messages: [],
-        timer: null
-      });
-    }
+    console.log(`[Webhook Bot 📩] Received message from ${senderPhone}: "${messageText}"`);
 
-    const userBuf = userMessageBuffers.get(bufferKey);
-    userBuf.messages.push(messageText);
-
-    if (userBuf.timer) {
-      clearTimeout(userBuf.timer);
-      console.log(`[Webhook Bot 🔄] Resetting 6s buffer timer for ${bufferKey} (Total chunks: ${userBuf.messages.length})`);
-    }
-
-    userBuf.timer = setTimeout(async () => {
-      const allChunks = [...userBuf.messages];
-      const targetPhone = userBuf.rawSenderPhone || rawSenderPhone;
-      userMessageBuffers.delete(bufferKey);
-
-      const combinedText = allChunks.join(' \n').trim();
-      console.log(`[Webhook Bot 📩] Processing aggregated message from ${targetPhone} (${allChunks.length} chunks combined):\n"${combinedText}"`);
-
-      try {
-        await processUserMessage(targetPhone, combinedText, value, accessToken, phoneNumberId);
-      } catch (err) {
-        console.error('[Webhook Aggregated Error]:', err);
-      }
-    }, MESSAGE_BUFFER_DELAY_MS);
+    await processUserMessage(senderPhone, messageText, value, accessToken, phoneNumberId);
 
   } catch (err) {
     console.error('[Webhook Listener Error]:', err);
   }
 });
 
-// Main Message Processor for Aggregated User Messages
+// Main Message Processor
 async function processUserMessage(senderPhone, messageText, value, accessToken, phoneNumberId) {
   try {
     // Scan database to identify the sender
