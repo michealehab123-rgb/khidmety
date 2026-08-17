@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 src/service-account.json
 server/service-account.json
+.vercel
+.env*

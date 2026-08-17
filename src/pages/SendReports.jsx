@@ -6,6 +6,7 @@ import {
     Search, Check, AlertCircle, Sparkles, X, Info, Smartphone,
     Clock, Calendar, Bell, List, Trash2
 } from 'lucide-react';
+import { matchArabicText } from '../utils/arabicSearch';
 
 const STAGE_CLASS_MAP = {
     'ابتدائي': ['حضانة/ملائكة', 'أولى ابتدائى', 'ثانية ابتدائى', 'ثالثة ابتدائى', 'رابعة ابتدائى', 'خامسة ابتدائى', 'سادسة ابتدائي'],
@@ -269,6 +270,8 @@ export default function SendReports() {
     const [webhookBotEnabled, setWebhookBotEnabled] = useState(true);
     const [webhookLogs, setWebhookLogs] = useState([]);
     const [webhookLogsLoading, setWebhookLogsLoading] = useState(true);
+    const [aiQueryLogs, setAiQueryLogs] = useState([]);
+    const [aiQueryLogsLoading, setAiQueryLogsLoading] = useState(true);
     const [webhookFilterStatus, setWebhookFilterStatus] = useState('all'); // 'all' | 'sent' | 'failed'
     const [servantsLoading, setServantsLoading] = useState(true);
     const [editedAdminMessage, setEditedAdminMessage] = useState('');
@@ -288,6 +291,13 @@ export default function SendReports() {
     // Periodic Scheduling list
     const [schedulesList, setSchedulesList] = useState([]);
     const [schedulesLoading, setSchedulesLoading] = useState(true);
+
+    // AI Dynamic Learning States
+    const [unansweredQuestions, setUnansweredQuestions] = useState([]);
+    const [kbItems, setKbItems] = useState([]);
+    const [aiAnswers, setAiAnswers] = useState({}); // { questionId: text }
+    const [loadingQuestions, setLoadingQuestions] = useState(true);
+    const [loadingKB, setLoadingKB] = useState(true);
 
     // States for input forms in the tabs
     const [studentsSchedule, setStudentsSchedule] = useState({
@@ -1153,9 +1163,43 @@ export default function SendReports() {
         return () => unsub();
     }, []);
 
+    // Sync AI Tab Data (unanswered questions and knowledge base)
+    useEffect(() => {
+        if (activeTab !== 'ai') return;
+        
+        setLoadingQuestions(true);
+        const unsubUnanswered = onSnapshot(collection(db, 'unansweredQuestions'), (snap) => {
+            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const pendingList = list
+                .filter(item => item.status === 'pending')
+                .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+            setUnansweredQuestions(pendingList);
+            setLoadingQuestions(false);
+        }, (err) => {
+            console.error("Error loading unanswered questions:", err);
+            setLoadingQuestions(false);
+        });
+
+        setLoadingKB(true);
+        const unsubKB = onSnapshot(collection(db, 'botKnowledgeBase'), (snap) => {
+            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const sortedList = list.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+            setKbItems(sortedList);
+            setLoadingKB(false);
+        }, (err) => {
+            console.error("Error loading knowledge base:", err);
+            setLoadingKB(false);
+        });
+
+        return () => {
+            unsubUnanswered();
+            unsubKB();
+        };
+    }, [activeTab]);
+
     // Sync Webhook Query Logs
     useEffect(() => {
-        if (activeTab !== 'webhook_bot') return;
+        if (activeTab !== 'webhook_bot' && activeTab !== 'ai') return;
         
         setWebhookLogsLoading(true);
         const q = query(
@@ -1175,6 +1219,40 @@ export default function SendReports() {
         
         return () => unsub();
     }, [activeTab]);
+
+    // Sync AI Query Logs
+    useEffect(() => {
+        if (activeTab !== 'ai') return;
+        
+        setAiQueryLogsLoading(true);
+        const q = query(
+            collection(db, 'webhookQueryLogs'),
+            where('isAIQuery', '==', true),
+            limit(100)
+        );
+        
+        const unsub = onSnapshot(q, (snap) => {
+            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Merge with general webhookLogs that have questionText (for backward compatibility)
+            const mergedMap = new Map();
+            list.forEach(log => mergedMap.set(log.id, log));
+            webhookLogs.forEach(log => {
+                if (log.questionText) {
+                    mergedMap.set(log.id, log);
+                }
+            });
+            
+            const sortedList = Array.from(mergedMap.values()).sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+            setAiQueryLogs(sortedList);
+            setAiQueryLogsLoading(false);
+        }, (error) => {
+            console.error("Error loading AI query logs:", error);
+            setAiQueryLogsLoading(false);
+        });
+        
+        return () => unsub();
+    }, [activeTab, webhookLogs]);
 
     const toggleWebhookBot = async () => {
         try {
@@ -1199,6 +1277,10 @@ export default function SendReports() {
         if (webhookFilterStatus === 'all') return webhookLogs;
         return webhookLogs.filter(log => log.status === webhookFilterStatus);
     }, [webhookLogs, webhookFilterStatus]);
+
+    const aiAnsweredQueries = useMemo(() => {
+        return aiQueryLogs;
+    }, [aiQueryLogs]);
 
     const handleDeleteWebhookLog = async (logId) => {
         try {
@@ -1225,6 +1307,85 @@ export default function SendReports() {
         } catch (err) {
             console.error("Error clearing logs:", err);
             showToast("حدث خطأ أثناء تفريغ السجل", "error");
+        }
+    };
+
+    const handleFeedBot = async (questionId, questionText, senderPhone, senderInfo) => {
+        const answerText = aiAnswers[questionId]?.trim();
+        if (!answerText) {
+            showToast("برجاء كتابة الإجابة أولاً لتغذية البوت! ⚠️", "error");
+            return;
+        }
+
+        try {
+            await addDoc(collection(db, 'botKnowledgeBase'), {
+                question: questionText,
+                answer: answerText,
+                addedBy: servant?.name || 'خادم',
+                timestamp: new Date().toISOString()
+            });
+
+            await updateDoc(doc(db, 'unansweredQuestions', questionId), {
+                status: 'answered',
+                answer: answerText,
+                answeredBy: servant?.name || 'خادم',
+                answeredAt: new Date().toISOString()
+            });
+
+            setAiAnswers(prev => {
+                const copy = { ...prev };
+                delete copy[questionId];
+                return copy;
+            });
+
+            showToast("تمت تغذية البوت وتدريبه على السؤال بنجاح! 🤖✨", "success");
+        } catch (err) {
+            console.error("Error feeding bot:", err);
+            showToast("حدث خطأ أثناء حفظ الإجابة سحابياً", "error");
+        }
+    };
+
+    const handleDeleteKBItem = async (itemId) => {
+        if (!window.confirm("هل أنت متأكد من حذف هذه المعلومة من قاعدة معرفة البوت؟")) return;
+        try {
+            await deleteDoc(doc(db, 'botKnowledgeBase', itemId));
+            showToast("تم حذف المعلومة بنجاح من قاعدة المعرفة 🗑️", "success");
+        } catch (err) {
+            console.error("Error deleting KB item:", err);
+            showToast("حدث خطأ أثناء حذف المعلومة", "error");
+        }
+    };
+
+    const handleCorrectAnswer = async (logId, questionText, senderPhone, senderInfo) => {
+        const correctedText = aiAnswers[logId]?.trim();
+        if (!correctedText) {
+            showToast("برجاء كتابة الإجابة المصححة أولاً! ⚠️", "error");
+            return;
+        }
+
+        try {
+            await addDoc(collection(db, 'botKnowledgeBase'), {
+                question: questionText,
+                answer: correctedText,
+                addedBy: servant?.name || 'خادم',
+                timestamp: new Date().toISOString()
+            });
+
+            await updateDoc(doc(db, 'webhookQueryLogs', logId), {
+                replyText: correctedText,
+                reason: 'تم تصحيح الإجابة وتعديلها يدوياً بواسطة الخادم'
+            });
+
+            setAiAnswers(prev => {
+                const copy = { ...prev };
+                delete copy[logId];
+                return copy;
+            });
+
+            showToast("تم حفظ التصحيح في قاعدة المعرفة بنجاح وتدريب البوت! 🤖✨", "success");
+        } catch (err) {
+            console.error("Error saving correction:", err);
+            showToast("حدث خطأ أثناء حفظ التصحيح سحابياً", "error");
         }
     };
 
@@ -1263,13 +1424,11 @@ export default function SendReports() {
             list = list.filter(s => allowed.includes(s.assignedClass));
         }
         
-        // Search filter
+        // Search filter with fuzzy match & Arabic normalization
         if (searchQuery.trim()) {
-            const normQuery = normalizeArabic(searchQuery.toLowerCase());
             list = list.filter(s => {
-                const normName = normalizeArabic((s.name || '').toLowerCase());
-                const code = (s.code || '').toLowerCase();
-                return normName.includes(normQuery) || code.includes(normQuery);
+                const combined = [s.name, s.code, s.phone, ...(s.phones || [])].filter(Boolean).join(' ');
+                return matchArabicText(searchQuery, combined);
             });
         }
         
@@ -3311,6 +3470,8 @@ export default function SendReports() {
                     </div>
                 );
             })()}
+
+
 
             {activeTab === 'webhook_bot' && isGenAdmin && (
                 <div className="space-y-6 animate-in fade-in duration-300">

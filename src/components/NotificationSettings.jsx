@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { STAGE_CLASSES } from '../constants';
+import { matchArabicText } from '../utils/arabicSearch';
 import { 
   db, 
   doc, 
@@ -819,11 +820,10 @@ export default function NotificationSettings({ quickSendOnly = false }) {
   // Filtered recipients list based on search query
   const filteredRecipients = useMemo(() => {
     if (!searchQuery.trim()) return recipientsList;
-    const queryNorm = normalizeArabic(searchQuery);
-    return recipientsList.filter(r => 
-      normalizeArabic(r.name).includes(queryNorm) || 
-      (r.role && normalizeArabic(r.role).includes(queryNorm))
-    );
+    return recipientsList.filter(r => {
+      const combined = [r.name, r.role, r.code, r.phone].filter(Boolean).join(' ');
+      return matchArabicText(searchQuery, combined);
+    });
   }, [recipientsList, searchQuery]);
 
   return (

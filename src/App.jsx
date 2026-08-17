@@ -25,6 +25,7 @@ import AdminOrders from './pages/AdminOrders';
 import AdminStudentProfile from './pages/AdminStudentProfile';
 import QrScannerPage from './pages/QrScannerPage';
 import SendReports from './pages/SendReports';
+import AiDashboard from './pages/AiDashboard';
 
 // ── General Admin Portal ─────────────────────────────────────────────────────
 import AdminDashboard from './pages/AdminDashboard';
@@ -37,6 +38,7 @@ import AdminSettings from './pages/AdminSettings';
 // ── Shared / Legacy Tool Pages ────────────────────────────────────────────────
 import MyClass from './pages/MyClass';
 import ClassServants from './pages/ClassServants';
+import MassReadings from './pages/MassReadings';
 
 import { useEffect, useRef } from 'react';
 import { useAuth } from './context/AuthContext';
@@ -93,7 +95,7 @@ function NotificationTracker() {
     isStudent 
   } = useAuth();
 
-  const hasRegisteredToken = useRef(false);
+  const lastRegisteredUserId = useRef(null);
 
   useEffect(() => {
     const pending = localStorage.getItem('pendingTokenRemoval');
@@ -146,7 +148,7 @@ function NotificationTracker() {
 
     if (!currentUserId) {
       console.log('[FCM Tracker] No active user ID found, resetting flag and skipping...');
-      hasRegisteredToken.current = false;
+      lastRegisteredUserId.current = null;
       return;
     }
 
@@ -157,8 +159,8 @@ function NotificationTracker() {
       return;
     }
 
-    if (hasRegisteredToken.current) {
-      console.log('[FCM Tracker] Token already registered in this session, skipping...');
+    if (lastRegisteredUserId.current === currentUserId) {
+      console.log('[FCM Tracker] Token already registered for this user ID, skipping...');
       return;
     }
 
@@ -217,7 +219,8 @@ function NotificationTracker() {
                 .then((currentToken) => {
                   if (currentToken) {
                     console.log('[FCM Tracker] Token retrieved successfully:', currentToken.substring(0, 20) + '...');
-                    fetch('https://server-ochre-one-17.vercel.app/api/register-token', {
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://server-ochre-one-17.vercel.app';
+                    fetch(`${backendUrl}/api/register-token`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -230,7 +233,7 @@ function NotificationTracker() {
                     .then((data) => {
                       if (data.success) {
                         console.log(`[FCM ✅] Token registered and cleaned up via Vercel server for: ${collectionName}/${currentUserId}`);
-                        hasRegisteredToken.current = true;
+                        lastRegisteredUserId.current = currentUserId;
                       } else {
                         console.error(`[FCM ❌] Token registration error:`, data.error);
                       }
@@ -309,6 +312,7 @@ function App() {
                 <Route path="/servant/student/:id" element={<ProtectedRoute><AdminStudentProfile /></ProtectedRoute>} />
                 <Route path="/servant/scanner"     element={<ProtectedRoute><QrScannerPage /></ProtectedRoute>} />
                 <Route path="/servant/send-reports" element={<ProtectedRoute><SendReports /></ProtectedRoute>} />
+                <Route path="/servant/ai"           element={<ProtectedRoute><AiDashboard /></ProtectedRoute>} />
                 <Route path="/servant"             element={<Navigate to="/servant/profile" replace />} />
 
                 {/* Shared routes */}
@@ -330,6 +334,7 @@ function App() {
                 {/* Shared Tool Routes */}
                 <Route path="/my-class"       element={<ProtectedRoute><MyClass /></ProtectedRoute>} />
                 <Route path="/class-servants" element={<ProtectedRoute><ClassServants /></ProtectedRoute>} />
+                <Route path="/mass-readings"  element={<ProtectedRoute><MassReadings /></ProtectedRoute>} />
 
                 {/* Catch-all */}
                 <Route path="/server/*" element={<Navigate to="/admin" replace />} />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, updateDoc, doc, getDoc, db } from '../firebase';
 import { User, Lock, ArrowRight, Star, AlertCircle, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,7 @@ export default function StudentLogin() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [rememberMe, setRememberMe] = useState(false);
+    const [rememberMe, setRememberMe] = useState(true);
     const navigate = useNavigate();
     const { logout, setStudentSession, setServantSession, isStudent, loading: authLoading } = useAuth();
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
@@ -24,14 +24,19 @@ export default function StudentLogin() {
         localStorage.setItem('theme', theme);
     }, [theme]);
 
-    // Smart Auto-Redirect: only auto-redirect if session is explicitly remembered
+    const location = useLocation();
+
+    // Smart Auto-Redirect: only auto-redirect if session is explicitly remembered & not adding new account
     useEffect(() => {
         if (authLoading) return;
+        const isAddingAccount = location.search.includes('addAccount=true');
+        if (isAddingAccount) return;
+
         const isRemembered = localStorage.getItem('rememberMe') === 'true';
         if (isRemembered && isStudent) {
             navigate('/student/dashboard', { replace: true });
         }
-    }, [isStudent, authLoading, navigate]);
+    }, [isStudent, authLoading, navigate, location]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -39,8 +44,8 @@ export default function StudentLogin() {
         setError('');
 
         try {
-            // First, sign out any existing Firebase session (Admin)
-            await logout();
+            // First, sign out any existing session without auto-switching or redirecting
+            await logout(false);
 
             const trimmedCode = code.trim();
 
@@ -183,6 +188,13 @@ export default function StudentLogin() {
                         </label>
                     </div>
 
+                    {location.search.includes('addAccount=true') && (
+                        <div className="p-3 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold flex items-center gap-2">
+                            <Star size={16} className="text-amber-400 shrink-0" />
+                            <span>إضافة حساب جديد: اختر "تذكرني" لحفظ الحساب للتبديل 📱</span>
+                        </div>
+                    )}
+
                     {error && (
                         <div className="p-3 bg-rose-50 dark:bg-rose-955/25 text-rose-600 dark:text-rose-450 rounded-lg text-sm font-bold border border-rose-100 dark:border-rose-900/30">
                             {error}
@@ -199,7 +211,7 @@ export default function StudentLogin() {
                 </form>
 
                 <div className="mt-8 pt-6 border-t border-slate-150 dark:border-slate-800 text-center">
-                    <Link to="/admin/login" className="text-slate-400 dark:text-slate-500 font-bold underline hover:text-blue-500 dark:hover:text-blue-400">دخول المشرفين</Link>
+                    <Link to={location.search.includes('addAccount=true') ? "/admin/login?addAccount=true" : "/admin/login"} className="text-slate-400 dark:text-slate-500 font-bold underline hover:text-blue-500 dark:hover:text-blue-400">دخول المشرفين والخدام</Link>
                 </div>
             </div>
         </div>

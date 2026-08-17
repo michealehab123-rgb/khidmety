@@ -579,15 +579,16 @@ export default function AdminStudentProfile() {
     };
 
     const removeAttendance = async (dateStr) => {
-        if (window.confirm("هل أنت متأكد من مسح هذا الحضور؟")) {
+        if (window.confirm(`هل أنت متأكد من مسح حضور يوم (${dateStr})؟`)) {
             try {
-                const safeClassId = student.assignedClass ? student.assignedClass.replace(/\//g, '-') : '';
+                const safeClassId = student?.assignedClass ? student.assignedClass.replace(/\//g, '-') : '';
                 const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
                 
-                const currentAttendance = student.attendance || [];
+                const currentAttendance = student?.attendance || [];
                 const newAttendance = currentAttendance.filter(d => d !== dateStr);
+                const newLiturgy = (student?.liturgyAttendance || []).filter(d => d !== dateStr);
                 
-                // Get pointsAdded from attendance record before deleting it
+                // 1. Get pointsAdded from attendance record before deleting it
                 const attendanceDocId = `${id}_${dateStr}`;
                 const attendanceRef = doc(db, 'attendance', attendanceDocId);
                 const attendanceSnap = await getDoc(attendanceRef);
@@ -596,32 +597,66 @@ export default function AdminStudentProfile() {
                     pointsAdded = attendanceSnap.data().pointsAdded || 0;
                 }
 
-                const updates = { 
-                    attendance: newAttendance,
-                    points: Math.max(0, (student.points || 0) - pointsAdded)
-                };
-                if (consecutiveGiftEnabled) {
-                    updates.attendanceStreak = calculateStreak(newAttendance);
-                }
+                // 2. Find matching pointsHistory documents & sum points
+                let historyPointsAdded = 0;
+                const historyDocsToDelete = [];
 
-                await updateDoc(doc(db, 'students', id), updates);
-                await deleteDoc(attendanceRef);
-
-                // Find and delete corresponding pointsHistory document
                 const q = query(collection(db, 'pointsHistory'), where('studentId', '==', id));
                 const querySnap = await getDocs(q);
-                querySnap.forEach(async (docSnap) => {
+
+                for (const docSnap of querySnap.docs) {
                     const data = docSnap.data();
-                    if (data.reason && data.reason.includes('حضور')) {
-                        const createdAtDate = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-                        const createdAtStr = `${createdAtDate.getFullYear()}-${String(createdAtDate.getMonth() + 1).padStart(2, '0')}-${String(createdAtDate.getDate()).padStart(2, '0')}`;
-                        if (createdAtStr === dateStr) {
-                            await deleteDoc(docSnap.ref);
+                    const reason = data.reason || '';
+                    const attDate = data.attendanceDate || '';
+                    const createdAtDate = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+                    const createdAtStr = `${createdAtDate.getFullYear()}-${String(createdAtDate.getMonth() + 1).padStart(2, '0')}-${String(createdAtDate.getDate()).padStart(2, '0')}`;
+
+                    const isMatch = attDate === dateStr || reason.includes(dateStr) || (reason.includes('حضور') && createdAtStr === dateStr);
+                    if (isMatch) {
+                        const pts = Number(data.amount || data.points || 0);
+                        if (pts > 0) {
+                            historyPointsAdded += pts;
                         }
+                        historyDocsToDelete.push(docSnap.ref);
                     }
-                });
+                }
+
+                const totalPointsToDeduct = pointsAdded > 0 ? pointsAdded : historyPointsAdded;
+                const newPoints = Math.max(0, (student?.points || 0) - totalPointsToDeduct);
+
+                const updates = { 
+                    attendance: newAttendance,
+                    liturgyAttendance: newLiturgy,
+                    points: newPoints
+                };
+                if (consecutiveGiftEnabled) {
+                    const oldStreak = student?.attendanceStreak || 0;
+                    const newStreak = calculateStreak(newAttendance);
+                    updates.attendanceStreak = newStreak;
+                    if (oldStreak > 0 && oldStreak % 4 === 0 && newStreak < oldStreak) {
+                        updates.pendingGifts = Math.max(0, (student?.pendingGifts || 0) - 1);
+                    }
+                }
+
+                // Update local student profile state immediately
+                setStudent(prev => ({
+                    ...prev,
+                    ...updates
+                }));
+
+                await updateDoc(doc(db, 'students', id), updates);
+                if (attendanceSnap.exists()) {
+                    await deleteDoc(attendanceRef);
+                }
+
+                for (const docRef of historyDocsToDelete) {
+                    await deleteDoc(docRef);
+                }
+
+                showToast(`تم مسح حضور يوم (${dateStr}) وخصم (${totalPointsToDeduct}) صفة بنجاح ✅`, 'success');
             } catch (error) {
                 console.error("Error removing attendance:", error);
+                showToast('حدث خطأ أثناء مسح الحضور', 'error');
             }
         }
     };

@@ -1,10 +1,44 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import fs from 'fs';
+import path from 'path';
+
+const currentBuildTime = Date.now();
+
+// Plugin لتوليد version.json تلقائياً في المجلد العام (public) عند كل Build
+function generateVersionJsonPlugin() {
+  return {
+    name: 'generate-version-json',
+    buildStart() {
+      try {
+        const publicDir = path.resolve(__dirname, 'public');
+        if (!fs.existsSync(publicDir)) {
+          fs.mkdirSync(publicDir, { recursive: true });
+        }
+        const versionPath = path.join(publicDir, 'version.json');
+        fs.writeFileSync(
+          versionPath,
+          JSON.stringify({
+            buildTime: currentBuildTime,
+            dateStr: new Date(currentBuildTime).toLocaleString('ar-EG')
+          }, null, 2)
+        );
+        console.log(`[VersionPlugin] Generated version.json with buildTime: ${currentBuildTime}`);
+      } catch (err) {
+        console.error('[VersionPlugin] Error generating version.json:', err);
+      }
+    }
+  };
+}
 
 export default defineConfig({
+  define: {
+    __APP_BUILD_TIME__: JSON.stringify(currentBuildTime)
+  },
   plugins: [
     react(),
+    generateVersionJsonPlugin(),
     VitePWA({
       // ⚠️ مهم: نستخدم 'prompt' مش 'autoUpdate' عشان نتحكم يدوياً في الـ SW
       // وعشان firebase-messaging-sw.js يشتغل بدون تعارض
@@ -15,6 +49,9 @@ export default defineConfig({
       injectRegister: null, // منعمل autoRegister للـ sw.js - هنعمل ده يدوياً في main.jsx
       
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         // الإشعارات دي بتتم عن طريق firebase-messaging-sw.js مش هنا
         // هنا بنعمل caching للملفات الأساسية بس
         runtimeCaching: [],

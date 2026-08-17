@@ -32,13 +32,13 @@ import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth"
 import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD5j3-Gvs3fBkbkFCQypFQ4uZBB3nhAWeI",
-  authDomain: "sunday-school-1ecad.firebaseapp.com",
-  projectId: "sunday-school-1ecad",
-  storageBucket: "sunday-school-1ecad.firebasestorage.app",
-  messagingSenderId: "226413393015",
-  appId: "1:226413393015:web:c6dde83def51958b748272",
-  measurementId: "G-FVZGB50RKS"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD5j3-Gvs3fBkbkFCQypFQ4uZBB3nhAWeI",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "sunday-school-1ecad.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "sunday-school-1ecad",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "sunday-school-1ecad.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "226413393015",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:226413393015:web:c6dde83def51958b748272",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-FVZGB50RKS"
 };
 
 // 1. تهيئة التطبيق والأنااليتكس

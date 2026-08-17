@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, doc, writeBatch, db, query, where, updateDoc, deleteField } from '../firebase';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Home, PhoneCall, CheckCircle, XCircle, Clock, AlertCircle, Phone, MapPin, UserCheck, Calendar, Users, X, Printer, FileSpreadsheet, Undo2 } from 'lucide-react';
+import { Home, PhoneCall, CheckCircle, XCircle, Clock, AlertCircle, Phone, MapPin, UserCheck, Calendar, Users, X, Printer, FileSpreadsheet, Undo2, Navigation, Search } from 'lucide-react';
 import { exportToExcelGeneric } from '../utils/excelExport';
+import { matchArabicText } from '../utils/arabicSearch';
 
 const STAGE_CLASS_MAP = {
     'ابتدائي': ['حضانة/ملائكة', 'أولى ابتدائى', 'ثانية ابتدائى', 'ثالثة ابتدائى', 'رابعة ابتدائى', 'خامسة ابتدائى', 'سادسة ابتدائي'],
@@ -68,6 +69,37 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
     const navigate = useNavigate();
     const location = useLocation();
     const [servantsInClass, setServantsInClass] = useState([]);
+
+    const allClassServants = useMemo(() => {
+        const list = [];
+
+        const isClassServantRole = (roleStr) => {
+            const r = roleStr ? normalizeArabic(roleStr) : '';
+            if (r === 'امين مرحله' || r === 'امين عام' || r === 'ادمن' || r === 'مشرف عام') return false;
+            return true;
+        };
+
+        const currentRoleNorm = servant?.role ? normalizeArabic(servant.role) : '';
+        const isCurrentClassServant = !isGeneralAdmin && currentRoleNorm !== 'امين مرحله' && currentRoleNorm !== 'امين عام';
+
+        if (isCurrentClassServant && servant && servant.id && isClassServantRole(servant.role)) {
+            list.push({
+                id: servant.id,
+                name: servant.nameStr || servant.name || user?.email || 'خادم',
+                code: servant.code || servant.servantCode || ''
+            });
+        }
+        servantsInClass.forEach(s => {
+            if (s && s.id && isClassServantRole(s.role) && !list.some(existing => existing.id === s.id)) {
+                list.push({
+                    id: s.id,
+                    name: s.nameStr || s.name || 'خادم',
+                    code: s.code || s.servantCode || ''
+                });
+            }
+        });
+        return list.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+    }, [servant, servantsInClass, user?.email, isGeneralAdmin]);
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
     
@@ -75,11 +107,20 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
     const [filterStage, setFilterStage] = useState('');
     const [filterClass, setFilterClass] = useState('');
     const [addressSearch, setAddressSearch] = useState('');
+    const [phoneSearch, setPhoneSearch] = useState('');
     
     const [partnerModal, setPartnerModal] = useState({ show: false, studentId: null, isPhone: false, missedFriday: null });
     const [selectedServants, setSelectedServants] = useState([]);
     const [lateModal, setLateModal] = useState({ show: false, studentId: null, isPhone: false, periodKey: null });
     const [lateNote, setLateNote] = useState('');
+
+    // Geolocation Modal State
+    const [locationModal, setLocationModal] = useState({ show: false, student: null });
+    const [locationInput, setLocationInput] = useState('');
+    const [locationLoading, setLocationLoading] = useState(false);
+
+    // Phone Distribution State
+    const [showOnlyMyAssigned, setShowOnlyMyAssigned] = useState(false);
 
     // Reports State
     const [selectedReportType, setSelectedReportType] = useState('home');
@@ -756,17 +797,15 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
         const studentCreatedTime = getCleanCreatedAtTime(st);
         if (currentMonthEndTime < studentCreatedTime) return false;
 
-        if (addressSearch) {
-            const normalizedQuery = normalizeArabic(addressSearch);
-            const matchesAddress = (() => {
-                if (st.address && normalizeArabic(st.address).includes(normalizedQuery)) return true;
-                if (st.location && normalizeArabic(st.location).includes(normalizedQuery)) return true;
-                if (st.addresses && Array.isArray(st.addresses)) {
-                    return st.addresses.some(addr => addr && normalizeArabic(addr).includes(normalizedQuery));
-                }
-                return false;
-            })();
-            if (!matchesAddress) return false;
+        if (addressSearch && addressSearch.trim()) {
+            const combinedLocation = [
+                st.name,
+                st.code,
+                st.address,
+                st.location,
+                ...(Array.isArray(st.addresses) ? st.addresses : [])
+            ].filter(Boolean).join(' ');
+            if (!matchArabicText(addressSearch, combinedLocation)) return false;
         }
 
         return true;
@@ -790,8 +829,23 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
     const lastFridayEndTime = lastFridayEnd.getTime();
     const phoneVisibleStudents = visibleStudents.filter(st => {
         const studentCreatedTime = getCleanCreatedAtTime(st);
-        return lastFridayEndTime >= studentCreatedTime;
+        if (lastFridayEndTime < studentCreatedTime) return false;
+
+        if (phoneSearch && phoneSearch.trim()) {
+            const studentPhones = getStudentPhones(st);
+            const combinedInfo = [
+                st.name,
+                st.code,
+                ...studentPhones
+            ].filter(Boolean).join(' ');
+
+            if (!matchArabicText(phoneSearch, combinedInfo)) return false;
+        }
+
+        return true;
     });
+
+    const phoneAllMissed = [];
 
     phoneVisibleStudents.forEach(st => {
         const att = st.attendance || [];
@@ -800,6 +854,7 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
         const wasPresentLastFriday = att.some(dStr => isSameLocalDate(dStr, lastFridayStr));
         
         if (!wasPresentLastFriday) {
+            phoneAllMissed.push(st);
             if (pv[lastFridayStr]?.status === 'called') {
                 phoneCalled.push(st);
             } else {
@@ -807,6 +862,78 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
             }
         }
     });
+
+    // Sort phoneAllMissed deterministically by student ID to guarantee identical order across all devices
+    phoneAllMissed.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+
+    const currentRoleNorm = servant?.role ? normalizeArabic(servant.role) : '';
+    const isCurrentClassServant = !isGeneralAdmin && currentRoleNorm !== 'امين مرحله' && currentRoleNorm !== 'امين عام';
+
+    // Equal Distribution & Rotation Logic for Phone Visitation (Class Servants Only)
+    const myPhoneAssignment = (() => {
+        const totalMissed = phoneAllMissed.length;
+        const totalServants = allClassServants.length;
+
+        if (totalMissed === 0 || totalServants === 0 || !isCurrentClassServant) {
+            return {
+                myNeedsCall: phoneNeedsCall,
+                myCalled: phoneCalled,
+                servantIndex: 0,
+                totalServants: Math.max(totalServants, 1),
+                myQuota: phoneNeedsCall.length,
+                totalMissed,
+                isClassServant: isCurrentClassServant
+            };
+        }
+
+        const currentServantId = servant?.id;
+        let servantIdx = allClassServants.findIndex(s => s.id === currentServantId);
+        if (servantIdx === -1) servantIdx = 0;
+
+        const hash = (lastFridayStr || '').split('-').reduce((acc, p) => acc + (parseInt(p, 10) || 0), 0);
+        const rotationOffset = hash % totalServants;
+
+        const baseQuota = Math.floor(totalMissed / totalServants);
+        const remainder = totalMissed % totalServants;
+
+        let currentOffset = 0;
+        const servantRanges = {};
+
+        for (let i = 0; i < totalServants; i++) {
+            const sIndex = (rotationOffset + i) % totalServants;
+            const quota = baseQuota + (i < remainder ? 1 : 0);
+            const start = currentOffset;
+            const end = currentOffset + quota;
+            servantRanges[sIndex] = { start, end, quota };
+            currentOffset = end;
+        }
+
+        const myRange = servantRanges[servantIdx] || { start: 0, end: totalMissed, quota: totalMissed };
+        const myAssignedAllMissed = phoneAllMissed.slice(myRange.start, myRange.end);
+
+        const myNeedsCall = myAssignedAllMissed.filter(st => {
+            const pv = st.phoneVisitations || {};
+            return pv[lastFridayStr]?.status !== 'called';
+        });
+
+        const myCalled = myAssignedAllMissed.filter(st => {
+            const pv = st.phoneVisitations || {};
+            return pv[lastFridayStr]?.status === 'called';
+        });
+
+        return {
+            myNeedsCall,
+            myCalled,
+            servantIndex: servantIdx,
+            totalServants,
+            myQuota: myAssignedAllMissed.length,
+            totalMissed,
+            isClassServant: true
+        };
+    })();
+
+    const displayedPhoneNeedsCall = (showOnlyMyAssigned && isCurrentClassServant) ? myPhoneAssignment.myNeedsCall : phoneNeedsCall;
+    const displayedPhoneCalled = (showOnlyMyAssigned && isCurrentClassServant) ? myPhoneAssignment.myCalled : phoneCalled;
 
     const markVisitation = async () => {
         if (!partnerModal.studentId) return;
@@ -906,6 +1033,116 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
         } catch (error) {
             console.error("Error saving late visitation:", error);
             alert("حدث خطأ أثناء حفظ الافتقاد المتأخر");
+        }
+    };
+
+    // Helper for Student Profile Navigation URL
+    const getStudentProfileUrl = (studentId) => {
+        return isGeneralAdmin ? `/admin/student/${studentId}` : `/servant/student/${studentId}`;
+    };
+
+    // Geolocation Management Handlers
+    const parseCoordinates = (str) => {
+        if (!str || typeof str !== 'string') return null;
+        const trimmed = str.trim();
+        const urlMatch = trimmed.match(/(?:@|q=|destination=|ll=)(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (urlMatch) {
+            return { latitude: parseFloat(urlMatch[1]), longitude: parseFloat(urlMatch[2]) };
+        }
+        const directMatch = trimmed.match(/^(-?\d+\.\d+)\s*[,|\s]\s*(-?\d+\.\d+)$/);
+        if (directMatch) {
+            return { latitude: parseFloat(directMatch[1]), longitude: parseFloat(directMatch[2]) };
+        }
+        return null;
+    };
+
+    const handleSaveGpsLocation = async (student) => {
+        if (!student?.id) return;
+        if (!navigator.geolocation) {
+            alert('عذراً، متصفحك لا يدعم خاصية تحديد الموقع الجغرافي GPS');
+            return;
+        }
+        setLocationLoading(true);
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const stRef = doc(db, 'students', student.id);
+                    const homeLocation = {
+                        latitude,
+                        longitude,
+                        updatedAt: new Date().toISOString()
+                    };
+                    await updateDoc(stRef, { homeLocation });
+                    alert(`📍 تم تحديد وحفظ موقع ${student.name} الجغرافي بنجاح!`);
+                    setLocationModal({ show: false, student: null });
+                    setLocationInput('');
+                } catch (error) {
+                    console.error('Error saving GPS location:', error);
+                    alert('حدث خطأ أثناء حفظ الموقع الجغرافي.');
+                } finally {
+                    setLocationLoading(false);
+                }
+            },
+            (error) => {
+                console.error('GPS error:', error);
+                let msg = 'تعذر التقاط الموقع.';
+                if (error.code === error.PERMISSION_DENIED) {
+                    msg = 'يرجى تفعيل صلاحية الوصول للموقع الجغرافي في جهازك/متصفحك.';
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    msg = 'معلومات الموقع الجغرافي غير متاحة حالياً.';
+                } else if (error.code === error.TIMEOUT) {
+                    msg = 'انتهت مهلة الحصول على الموقع.';
+                }
+                alert(msg);
+                setLocationLoading(false);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    };
+
+    const handleSaveManualLocation = async (student) => {
+        if (!student?.id || !locationInput.trim()) return;
+        const coords = parseCoordinates(locationInput);
+        if (!coords) {
+            alert('صيغة الإحداثيات أو الرابط غير صحيحة.\nيرجى إدخال إحداثيات مثل: 30.0444, 31.2357 أو إلصاق رابط خريطة جوجل تحتوي إحداثيات.');
+            return;
+        }
+        setLocationLoading(true);
+        try {
+            const stRef = doc(db, 'students', student.id);
+            const homeLocation = {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                updatedAt: new Date().toISOString()
+            };
+            await updateDoc(stRef, { homeLocation });
+            alert(`📍 تم حفظ موقع ${student.name} الجغرافي بنجاح!`);
+            setLocationModal({ show: false, student: null });
+            setLocationInput('');
+        } catch (error) {
+            console.error('Error saving manual location:', error);
+            alert('حدث خطأ أثناء حفظ الموقع.');
+        } finally {
+            setLocationLoading(false);
+        }
+    };
+
+    const handleRemoveLocation = async (student) => {
+        if (!student?.id) return;
+        if (!window.confirm(`هل أنت متأكد من حذف الموقع الجغرافي المحفوظ لـ ${student.name}؟`)) return;
+        setLocationLoading(true);
+        try {
+            const stRef = doc(db, 'students', student.id);
+            await updateDoc(stRef, { homeLocation: deleteField() });
+            alert('تم حذف الموقع الجغرافي بنجاح.');
+            setLocationModal({ show: false, student: null });
+            setLocationInput('');
+        } catch (error) {
+            console.error('Error removing location:', error);
+            alert('حدث خطأ أثناء حذف الموقع.');
+        } finally {
+            setLocationLoading(false);
         }
     };
 
@@ -1108,24 +1345,58 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                                 {homeNeedsVisit.length === 0 ? <p className="text-center text-slate-400 text-sm py-8">لا يوجد مخدومين هنا</p> : 
                                     homeNeedsVisit.map(st => (
                                         <div key={st.id} className="relative bg-white dark:bg-[#1e293b] hover:bg-slate-50 dark:hover:bg-[#243146] border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 shadow-sm transition-all duration-200">
-                                            <h4 className="font-black text-slate-800 dark:text-slate-100 text-lg mb-1 pl-16">{st.name}</h4>
+                                            <Link 
+                                                to={getStudentProfileUrl(st.id)} 
+                                                className="font-black text-slate-800 dark:text-slate-100 text-lg mb-1 pl-20 hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer transition-colors inline-block"
+                                                title="انتقل إلى ملف المخدوم للتعديل"
+                                            >
+                                                {st.name}
+                                            </Link>
                                             {st.assignedClass && (
-                                                <span className="inline-block bg-transparent border-none p-0 text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+                                                <span className="block bg-transparent border-none p-0 text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
                                                     {st.assignedClass}
                                                 </span>
                                             )}
-                                            {st.homeLocation && (
-                                                <a 
-                                                    href={`https://www.google.com/maps/dir/?api=1&destination=${st.homeLocation.latitude},${st.homeLocation.longitude}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="absolute top-4 left-4 flex items-center gap-1 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40 px-2 py-0.5 rounded-lg text-xs font-black hover:bg-blue-100 dark:hover:bg-blue-900/60 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
-                                                    title="افتح الاتجاهات على خريطة جوجل"
-                                                >
-                                                    <MapPin size={11} className="fill-blue-600 dark:fill-blue-400" />
-                                                    <span>خريطة 🗺️</span>
-                                                </a>
-                                            )}
+                                            <div className="absolute top-4 left-4 flex items-center gap-1.5 shrink-0">
+                                                {st.homeLocation ? (
+                                                    <>
+                                                        <a 
+                                                            href={`https://www.google.com/maps/dir/?api=1&destination=${st.homeLocation.latitude},${st.homeLocation.longitude}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-1 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40 px-2 py-0.5 rounded-lg text-xs font-black hover:bg-blue-100 dark:hover:bg-blue-900/60 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+                                                            title="افتح الاتجاهات على خريطة جوجل"
+                                                        >
+                                                            <MapPin size={11} className="fill-blue-600 dark:fill-blue-400" />
+                                                            <span>خريطة 🗺️</span>
+                                                        </a>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setLocationModal({ show: true, student: st });
+                                                                setLocationInput(st.homeLocation ? `${st.homeLocation.latitude}, ${st.homeLocation.longitude}` : '');
+                                                            }}
+                                                            className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                                                            title="تعديل الموقع الجغرافي"
+                                                        >
+                                                            <MapPin size={11} />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setLocationModal({ show: true, student: st });
+                                                            setLocationInput('');
+                                                        }}
+                                                        className="flex items-center gap-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 px-2 py-0.5 rounded-lg text-xs font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+                                                        title="تحديد الموقع الجغرافي"
+                                                    >
+                                                        <MapPin size={11} />
+                                                        <span>📍 تحديد الموقع</span>
+                                                    </button>
+                                                )}
+                                            </div>
                                             <div className="space-y-1.5 text-sm text-slate-600 dark:text-slate-400 mb-4">
                                                 <p className="flex items-center gap-2"><Phone size={14} className="text-slate-400 dark:text-slate-500"/> {st.phones?.[0] || '—'} <span className="font-mono text-xs bg-slate-100 dark:bg-[#0f172a] text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">{st.code}</span></p>
                                                 <p className="flex items-start gap-2">
@@ -1180,11 +1451,38 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                                         <div key={st.id} className="bg-white dark:bg-[#1e293b] hover:bg-slate-50 dark:hover:bg-[#243146] border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 shadow-sm transition-all duration-200">
                                             <div className="flex justify-between items-start gap-2">
                                                 <div className="flex-1">
-                                                    <h4 className="font-black text-slate-800 dark:text-slate-100 text-lg mb-1">{st.name}</h4>
+                                                    <Link 
+                                                        to={getStudentProfileUrl(st.id)}
+                                                        className="font-black text-slate-800 dark:text-slate-100 text-lg mb-1 hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer transition-colors inline-block"
+                                                        title="انتقل إلى ملف المخدوم للتعديل"
+                                                    >
+                                                        {st.name}
+                                                    </Link>
                                                     <div className="text-xs text-slate-500 dark:text-slate-400 font-bold space-y-1 flex flex-col gap-1">
                                                         <span className="text-slate-500 dark:text-slate-200">الخدام المسؤولين: <span className="text-slate-700 dark:text-white font-black">{st.homeVisitations[currentMonth].visitedBy ? st.homeVisitations[currentMonth].visitedBy.join(' ، ') : st.homeVisitations[currentMonth].servantName}</span></span>
                                                         {!st.homeVisitations[currentMonth].visitedBy && st.homeVisitations[currentMonth].partnerId && <span>ومشاركة خادم آخر</span>}
                                                     </div>
+                                                    {st.homeLocation ? (
+                                                        <a 
+                                                            href={`https://www.google.com/maps/dir/?api=1&destination=${st.homeLocation.latitude},${st.homeLocation.longitude}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                                                        >
+                                                            <MapPin size={11} /> <span>خريطة 🗺️</span>
+                                                        </a>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setLocationModal({ show: true, student: st });
+                                                                setLocationInput('');
+                                                            }}
+                                                            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline mt-1"
+                                                        >
+                                                            <MapPin size={11} /> <span>📍 إضافة موقع جغرافي</span>
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 <button
                                                     onClick={() => {
@@ -1211,23 +1509,76 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
             )}
 
             {activeTab === 'phone' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[40vh]">
-                    {/* Phone: Needs Call */}
-                    <div className="bg-white dark:bg-[#1e293b]/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-inner">
-                        <div className="flex justify-between items-center pb-3 border-b border-slate-150 dark:border-slate-800/60">
-                            <h3 className="font-bold text-blue-800 dark:text-emerald-400 flex items-center gap-2">
-                                <PhoneCall size={18} className="text-blue-600 dark:text-emerald-400" />
-                                يحتاج لاتصال
-                            </h3>
-                            <span className="bg-blue-100 dark:bg-emerald-500/10 text-blue-800 dark:text-emerald-400 px-3 py-1 rounded-full text-xs font-black">{phoneNeedsCall.length}</span>
-                        </div>
-                        <div className="space-y-4 max-h-[60vh] overflow-y-auto mt-4 pr-1">
-                            {phoneNeedsCall.length === 0 ? <p className="text-center text-slate-400 text-sm py-8">الجميع حضر الجمعة الماضية!</p> : 
-                                phoneNeedsCall.map(st => (
+                <div className="space-y-4">
+                    {/* Search Bar for Phone Visitation */}
+                    <div className="relative max-w-md w-full">
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400 dark:text-slate-500">
+                            <Search size={20} />
+                        </span>
+                        <input
+                            type="text"
+                            value={phoneSearch}
+                            onChange={e => setPhoneSearch(e.target.value)}
+                            placeholder="ابحث بالاسم أو الكود أو رقم التليفون..."
+                            className="w-full max-w-md pr-10 pl-10 p-3 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+                        />
+                        {phoneSearch && (
+                            <button 
+                                onClick={() => setPhoneSearch('')}
+                                className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer border-none bg-transparent"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Distribution Control Bar */}
+                    <div className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                        <label className="flex items-center gap-2.5 cursor-pointer font-bold text-sm text-slate-800 dark:text-slate-200 select-none">
+                            <input 
+                                type="checkbox"
+                                checked={showOnlyMyAssigned}
+                                onChange={(e) => setShowOnlyMyAssigned(e.target.checked)}
+                                className="w-4.5 h-4.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer"
+                            />
+                            <span>عرض المطلوب افتقادهم مني فقط (المكلف بي كخادم فصل)</span>
+                        </label>
+                        {showOnlyMyAssigned && (
+                            myPhoneAssignment.isClassServant ? (
+                                <span className="bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40 px-3 py-1 rounded-xl text-xs font-black">
+                                    حصتك هذا الأسبوع: {myPhoneAssignment.myQuota} مخدومين (مقسمة من إجمالي {myPhoneAssignment.totalMissed} غائبين على {allClassServants.length} خادم فصل)
+                                </span>
+                            ) : (
+                                <span className="bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40 px-3 py-1 rounded-xl text-xs font-bold">
+                                    ملاحظة: التقسيم يوزع بالتساوي على أمناء الفصل فقط ({allClassServants.length} خادم فصل). كأمين مرحلة / أمين عام تُعرض لك كافة الحالات.
+                                </span>
+                            )
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[40vh]">
+                        {/* Phone: Needs Call */}
+                        <div className="bg-white dark:bg-[#1e293b]/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-inner">
+                            <div className="flex justify-between items-center pb-3 border-b border-slate-150 dark:border-slate-800/60">
+                                <h3 className="font-bold text-blue-800 dark:text-emerald-400 flex items-center gap-2">
+                                    <PhoneCall size={18} className="text-blue-600 dark:text-emerald-400" />
+                                    {showOnlyMyAssigned ? 'المكلف بي لاتصالهم' : 'يحتاج لاتصال'}
+                                </h3>
+                                <span className="bg-blue-100 dark:bg-emerald-500/10 text-blue-800 dark:text-emerald-400 px-3 py-1 rounded-full text-xs font-black">{displayedPhoneNeedsCall.length}</span>
+                            </div>
+                            <div className="space-y-4 max-h-[60vh] overflow-y-auto mt-4 pr-1">
+                                {displayedPhoneNeedsCall.length === 0 ? <p className="text-center text-slate-400 text-sm py-8">{phoneSearch ? 'لا توجد نتائج تطابق البحث' : (showOnlyMyAssigned ? 'أتممت جميع المكالمات المكلف بها هذا الأسبوع! 🎉' : 'الجميع حضر الجمعة الماضية!')}</p> : 
+                                    displayedPhoneNeedsCall.map(st => (
                                     <div key={st.id} className="bg-white dark:bg-[#1e293b] hover:bg-slate-50 dark:hover:bg-[#243146] border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 shadow-sm transition-all duration-200">
-                                        <h4 className="font-black text-slate-800 dark:text-slate-100 text-lg mb-1">{st.name}</h4>
+                                        <Link 
+                                            to={getStudentProfileUrl(st.id)}
+                                            className="font-black text-slate-800 dark:text-slate-100 text-lg mb-1 hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer transition-colors inline-block"
+                                            title="انتقل إلى ملف المخدوم للتعديل"
+                                        >
+                                            {st.name}
+                                        </Link>
                                         {st.assignedClass && (
-                                            <span className="inline-block bg-transparent border-none p-0 text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+                                            <span className="block bg-transparent border-none p-0 text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
                                                 {st.assignedClass}
                                             </span>
                                         )}
@@ -1262,7 +1613,7 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                                             );
                                         })()}
                                         <button onClick={() => setPartnerModal({ show: true, studentId: st.id, isPhone: true, missedFriday: lastFridayStr })} className="w-full py-2.5 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-transparent text-blue-700 dark:text-blue-400 rounded-xl text-sm font-bold hover:bg-blue-100 dark:hover:bg-blue-900/30 transition cursor-pointer">
-                                            تسجيل المكالمة
+                                            تسجيل الافتقاد
                                         </button>
                                     </div>
                                 ))
@@ -1275,17 +1626,23 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                         <div className="flex justify-between items-center pb-3 border-b border-slate-150 dark:border-slate-800/60">
                             <h3 className="font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-2">
                                 <UserCheck size={18} className="text-emerald-600 dark:text-emerald-400" />
-                                تم التواصل
+                                {showOnlyMyAssigned ? 'تم التواصل (من حصتي)' : 'تم التواصل'}
                             </h3>
-                            <span className="bg-emerald-100 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 px-3 py-1 rounded-full text-xs font-black">{phoneCalled.length}</span>
+                            <span className="bg-emerald-100 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 px-3 py-1 rounded-full text-xs font-black">{displayedPhoneCalled.length}</span>
                         </div>
                         <div className="space-y-4 max-h-[60vh] overflow-y-auto mt-4 pr-1">
-                            {phoneCalled.length === 0 ? <p className="text-center text-slate-400 text-sm py-8">لا يوجد مكالمات ليوم الجمعة الماضي</p> : 
-                                phoneCalled.map(st => (
+                            {displayedPhoneCalled.length === 0 ? <p className="text-center text-slate-400 text-sm py-8">{phoneSearch ? 'لا توجد نتائج تطابق البحث' : (showOnlyMyAssigned ? 'لم تقم بإجراء أي مكالمات من حصتك حتى الآن' : 'لا يوجد مكالمات ليوم الجمعة الماضي')}</p> : 
+                                displayedPhoneCalled.map(st => (
                                     <div key={st.id} className="bg-white dark:bg-[#1e293b] hover:bg-slate-50 dark:hover:bg-[#243146] border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 shadow-sm transition-all duration-200">
                                         <div className="flex justify-between items-start gap-2">
                                             <div className="flex-1">
-                                                <h4 className="font-black text-slate-800 dark:text-slate-100 text-lg mb-1">{st.name}</h4>
+                                                <Link 
+                                                    to={getStudentProfileUrl(st.id)}
+                                                    className="font-black text-slate-800 dark:text-slate-100 text-lg mb-1 hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer transition-colors inline-block"
+                                                    title="انتقل إلى ملف المخدوم للتعديل"
+                                                >
+                                                    {st.name}
+                                                </Link>
                                                 <div className="text-xs text-slate-550 dark:text-slate-400 font-bold space-y-1">
                                                     <p className="text-slate-500 dark:text-slate-200">تم المتابعة الهاتفية بنجاح</p>
                                                     {st.phoneVisitations?.[lastFridayStr]?.servantName && (
@@ -1316,6 +1673,7 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                         </div>
                     </div>
                 </div>
+            </div>
             )}
             {activeTab === 'reports' && (
                 <div className="space-y-8 animate-in fade-in duration-300">
@@ -1524,7 +1882,13 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                                                     <div key={st.id} className="p-4 border border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/20 dark:bg-slate-900/10 hover:border-emerald-300/40 dark:hover:border-emerald-900/30 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
                                                         <div className="flex justify-between items-start mb-2">
                                                             <h5 className="font-black text-slate-800 dark:text-slate-200 text-base flex items-center gap-2">
-                                                                <span>{st.name}</span>
+                                                                <Link 
+                                                                    to={getStudentProfileUrl(st.id)}
+                                                                    className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer transition-colors"
+                                                                    title="انتقل إلى ملف المخدوم للتعديل"
+                                                                >
+                                                                    {st.name}
+                                                                </Link>
                                                                 {st.assignedClass && !selectedClass && (
                                                                     <span className="text-[10px] bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md border border-blue-100 dark:border-transparent font-medium">
                                                                         {st.assignedClass}
@@ -1603,8 +1967,14 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                                         ) : (
                                             notVisitedList.map(st => (
                                                 <div key={st.id} className="relative p-4 border border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/20 dark:bg-slate-900/10 hover:border-orange-300/40 dark:hover:border-orange-900/30 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
-                                                    <div className="flex items-center gap-2 mb-2 pr-0 pl-16">
-                                                        <h5 className="font-black text-slate-800 dark:text-slate-200 text-base">{st.name}</h5>
+                                                    <div className="flex items-center gap-2 mb-2 pr-0 pl-24">
+                                                        <Link 
+                                                            to={getStudentProfileUrl(st.id)}
+                                                            className="font-black text-slate-800 dark:text-slate-200 text-base hover:text-blue-600 dark:hover:text-blue-400 hover:underline cursor-pointer transition-colors"
+                                                            title="انتقل إلى ملف المخدوم للتعديل"
+                                                        >
+                                                            {st.name}
+                                                        </Link>
                                                         {st.assignedClass && !selectedClass && (
                                                             <span className="text-[10px] bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-md border border-blue-100 dark:border-transparent font-medium mr-2">
                                                                 {st.assignedClass}
@@ -1615,18 +1985,46 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                                                         </span>
                                                     </div>
 
-                                                    {st.homeLocation && (
-                                                        <a 
-                                                            href={`https://www.google.com/maps/dir/?api=1&destination=${st.homeLocation.latitude},${st.homeLocation.longitude}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="absolute top-4 left-4 flex items-center gap-1 bg-blue-50 text-blue-600 dark:bg-blue-955/40 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40 px-2 py-0.5 rounded-lg text-[10px] font-black hover:bg-blue-100 dark:hover:bg-blue-900/60 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
-                                                            title="افتح الاتجاهات على خريطة جوجل"
-                                                        >
-                                                            <MapPin size={10} className="fill-blue-600 dark:fill-blue-400" />
-                                                            <span>خريطة 🗺️</span>
-                                                        </a>
-                                                    )}
+                                                    <div className="absolute top-4 left-4 flex items-center gap-1.5 shrink-0">
+                                                        {st.homeLocation ? (
+                                                            <>
+                                                                <a 
+                                                                    href={`https://www.google.com/maps/dir/?api=1&destination=${st.homeLocation.latitude},${st.homeLocation.longitude}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="flex items-center gap-1 bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40 px-2 py-0.5 rounded-lg text-[10px] font-black hover:bg-blue-100 dark:hover:bg-blue-900/60 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+                                                                    title="افتح الاتجاهات على خريطة جوجل"
+                                                                >
+                                                                    <MapPin size={10} className="fill-blue-600 dark:fill-blue-400" />
+                                                                    <span>خريطة 🗺️</span>
+                                                                </a>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setLocationModal({ show: true, student: st });
+                                                                        setLocationInput(st.homeLocation ? `${st.homeLocation.latitude}, ${st.homeLocation.longitude}` : '');
+                                                                    }}
+                                                                    className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                                                                    title="تعديل الموقع الجغرافي"
+                                                                >
+                                                                    <MapPin size={10} />
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setLocationModal({ show: true, student: st });
+                                                                    setLocationInput('');
+                                                                }}
+                                                                className="flex items-center gap-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40 px-2 py-0.5 rounded-lg text-[10px] font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+                                                                title="تحديد الموقع الجغرافي"
+                                                            >
+                                                                <MapPin size={10} />
+                                                                <span>📍 تحديد الموقع</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
 
                                                     <div className="space-y-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 mt-3 pt-2 border-t border-slate-150 dark:border-slate-800/50">
                                                         <div className="flex items-center gap-2">
@@ -1686,10 +2084,15 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {attendedFridayList.map(st => (
-                                            <span key={st.id} className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-xl text-xs flex items-center gap-1">
+                                            <Link 
+                                                key={st.id} 
+                                                to={getStudentProfileUrl(st.id)}
+                                                className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 transition-colors"
+                                                title="انتقل إلى ملف المخدوم للتعديل"
+                                            >
                                                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
                                                 {st.name}
-                                            </span>
+                                            </Link>
                                         ))}
                                     </div>
                                 </div>
@@ -1765,7 +2168,7 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
             {(() => {
                 if (!lateModal.show) return null;
                 const student = students.find(s => s.id === lateModal.studentId) || reportStudents.find(s => s.id === lateModal.studentId);
-                const phones = getStudentPhones(student);
+                const contactOptions = getContactOptions(student);
 
                 return (
                     <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1828,6 +2231,93 @@ export default function Visitation({ isEmbedded = false, embeddedStage = '', emb
                     </div>
                 );
             })()}
+
+            {/* Geolocation Modal */}
+            {locationModal.show && locationModal.student && (
+                <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#1e293b] rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 p-6 animate-in zoom-in-95 duration-200" dir="rtl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <MapPin className="text-emerald-600 dark:text-emerald-400" size={22} />
+                                تحديد الموقع الجغرافي
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setLocationModal({ show: false, student: null });
+                                    setLocationInput('');
+                                }}
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <p className="text-sm font-bold text-slate-600 dark:text-slate-300 mb-4">
+                            المخدوم: <span className="text-blue-600 dark:text-blue-400 font-black">{locationModal.student.name}</span>
+                        </p>
+
+                        {/* Option 1: Automatic GPS Capture */}
+                        <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl p-4 mb-4 text-center">
+                            <h4 className="font-black text-emerald-900 dark:text-emerald-300 text-sm mb-1">خيار 1: تحديد موقعي الحالي تلقائيًا (GPS)</h4>
+                            <p className="text-xs text-emerald-700 dark:text-emerald-400/80 mb-3">
+                                يستحسن أن تكون متواجدًا عند منزل المخدوم أثناء ضغط هذا الزر
+                            </p>
+                            <button
+                                type="button"
+                                disabled={locationLoading}
+                                onClick={() => handleSaveGpsLocation(locationModal.student)}
+                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                            >
+                                <MapPin size={16} />
+                                {locationLoading ? 'جاري تحديد إحداثيات الـ GPS...' : '📍 التقاط وحفظ موقعي الحالي الآن'}
+                            </button>
+                        </div>
+
+                        {/* Option 2: Manual Link / Coordinates */}
+                        <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 mb-4">
+                            <h4 className="font-black text-slate-800 dark:text-slate-200 text-sm mb-2">خيار 2: إدخال الإحداثيات أو رابط جوجل مابس يدويًا</h4>
+                            <input
+                                type="text"
+                                value={locationInput}
+                                onChange={(e) => setLocationInput(e.target.value)}
+                                placeholder="مثال: 30.0444, 31.2357 أو رابط Google Maps"
+                                className="w-full p-3 text-xs bg-white dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono mb-3"
+                                dir="ltr"
+                            />
+                            <button
+                                type="button"
+                                disabled={locationLoading || !locationInput.trim()}
+                                onClick={() => handleSaveManualLocation(locationModal.student)}
+                                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow cursor-pointer disabled:opacity-50"
+                            >
+                                حفظ الإحداثيات اليدوية
+                            </button>
+                        </div>
+
+                        {/* Option 3: Existing Location Info & Remove */}
+                        {locationModal.student.homeLocation && (
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                                <a
+                                    href={`https://www.google.com/maps/dir/?api=1&destination=${locationModal.student.homeLocation.latitude},${locationModal.student.homeLocation.longitude}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                >
+                                    معاينة الخريطة الحالية 🗺️
+                                </a>
+                                <button
+                                    type="button"
+                                    onClick={() => handleRemoveLocation(locationModal.student)}
+                                    className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:underline"
+                                >
+                                    حذف الموقع الجغرافي
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

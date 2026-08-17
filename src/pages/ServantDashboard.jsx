@@ -2,8 +2,13 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import NotificationSettings from '../components/NotificationSettings';
 import Visitation from './Visitation';
 import ClassServants from './ClassServants';
+import BulkAttendanceModal from '../components/BulkAttendanceModal';
+import LateAttendanceDateModal from '../components/LateAttendanceDateModal';
 import { exportStudentsToExcel, exportAttendanceToExcel, downloadExcelTemplate } from '../utils/excelExport';
+import { matchArabicText } from '../utils/arabicSearch';
 import * as XLSX from 'xlsx';
+import { Sparkles, Clock } from 'lucide-react';
+
 
 
 
@@ -705,7 +710,7 @@ function filterStudentsForServant(list, servantData) {
 
 
 
-function StudentRow({ student, addPoints, markAttendance, markLiturgy, deleteStudent, openAttendanceModal, resetPassword, shortcuts, addShortcut, removeShortcut, consecutiveGiftEnabled, claimGift, isBonus = false, storeVisible = true }) {
+function StudentRow({ student, addPoints, markAttendance, markLiturgy, deleteStudent, openAttendanceModal, resetPassword, shortcuts, addShortcut, removeShortcut, consecutiveGiftEnabled, claimGift, isBonus = false, storeVisible = true, activeAttendanceDate = null }) {
     const [amount, setAmount] = useState(0);
     const [showAddShortcut, setShowAddShortcut] = useState(false);
     const [newShortcut, setNewShortcut] = useState('');
@@ -713,12 +718,11 @@ function StudentRow({ student, addPoints, markAttendance, markLiturgy, deleteStu
     const [isSubmittingLiturgy, setIsSubmittingLiturgy] = useState(false);
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const targetDateStr = activeAttendanceDate || todayStr;
     const [isMutatingBonus, setIsMutatingBonus] = useState(false);
     const [attendancePointsInput, setAttendancePointsInput] = useState('');
 
-    const isPointsValid = storeVisible === false
-        ? /^\d*$/.test(attendancePointsInput)
-        : /^\d+$/.test(attendancePointsInput);
+    const isPointsValid = !storeVisible || /^\d+$/.test(attendancePointsInput);
 
     const handleAdd = () => {
         if (amount > 0) {
@@ -748,7 +752,9 @@ function StudentRow({ student, addPoints, markAttendance, markLiturgy, deleteStu
         if (!isPointsValid) return;
         setIsSubmitting(true);
         try {
-            await markAttendance(student.id, Number(attendancePointsInput));
+            const points = (!storeVisible || attendancePointsInput === '') ? 0 : Number(attendancePointsInput);
+            await markAttendance(student.id, points, targetDateStr);
+            setAttendancePointsInput('');
         } catch (error) {
             console.error("Error marking attendance:", error);
         } finally {
@@ -756,12 +762,11 @@ function StudentRow({ student, addPoints, markAttendance, markLiturgy, deleteStu
         }
     };
 
-    const isFriday = new Date().getDay() === 5;
-    const isAttendedToday = student.attendance?.some(dateStr => {
-        const d = new Date(dateStr);
-        const today = new Date();
-        return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-    });
+
+    const [y, m, d] = targetDateStr.split('-').map(Number);
+    const isFriday = new Date(y, m - 1, d).getDay() === 5;
+    const isAttendedToday = Array.isArray(student.attendance) && student.attendance.includes(targetDateStr);
+
 
     return (
         <div className={`bg-white dark:bg-[#1e293b] p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 mb-4 transition-colors duration-300 ${isAttendedToday && !isBonus ? 'attended-today dark:bg-[#1e293b]/70' : ''}`}>
@@ -941,20 +946,36 @@ function StudentRow({ student, addPoints, markAttendance, markLiturgy, deleteStu
 
                 {!isBonus && (
                     <div className="mr-auto flex flex-wrap items-center gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer font-bold text-sm bg-slate-100 dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-slate-700 dark:text-slate-350 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all select-none">
-                            <input
-                                type="checkbox"
-                                checked={!!student.liturgyAttendance?.includes(todayStr)}
-                                onChange={(e) => {
-                                    if (isSubmittingLiturgy) return;
-                                    setIsSubmittingLiturgy(true);
-                                    markLiturgy(student.id, e.target.checked).finally(() => setIsSubmittingLiturgy(false));
-                                }}
-                                disabled={!isFriday}
-                                className="w-5 h-5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500 cursor-pointer"
-                            />
-                            <span className="text-black dark:text-white font-bold">حضور القداس ⛪</span>
-                        </label>
+                        <button
+                            type="button"
+                            disabled={!isFriday || isSubmittingLiturgy}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (isSubmittingLiturgy || !isFriday) return;
+                                setIsSubmittingLiturgy(true);
+                                const isCurrentlyChecked = !!student.liturgyAttendance?.includes(targetDateStr);
+                                markLiturgy(student.id, !isCurrentlyChecked, targetDateStr).finally(() => setIsSubmittingLiturgy(false));
+                            }}
+                            className={`flex items-center gap-2 cursor-pointer font-extrabold text-sm px-4 py-2.5 rounded-xl border shadow-sm transition-all select-none active:scale-95 ${
+                                !!student.liturgyAttendance?.includes(targetDateStr)
+                                ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300'
+                                : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                !!student.liturgyAttendance?.includes(targetDateStr)
+                                ? 'bg-purple-600 border-purple-600 text-white'
+                                : 'border-slate-400 bg-white dark:bg-[#1e293b]'
+                            }`}>
+                                {!!student.liturgyAttendance?.includes(targetDateStr) && (
+                                    <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
+                                        <path d="M0 11l2-2 5 5L18 3l2 2L7 18z"/>
+                                    </svg>
+                                )}
+                            </div>
+                            <span className="font-bold">حضور القداس ⛪</span>
+                        </button>
                         <button 
                             onClick={handleMark} 
                             disabled={isAttendedToday || !isFriday || isSubmitting || !isPointsValid}
@@ -964,11 +985,12 @@ function StudentRow({ student, addPoints, markAttendance, markLiturgy, deleteStu
                                 : (isFriday && !isSubmitting && isPointsValid ? 'bg-emerald-500 text-white shadow-md' : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-555 cursor-not-allowed')
                             }`}
                         >
-                            {isSubmitting ? 'جاري التسجيل...' : (isAttendedToday ? 'تم التحضير اليوم' : (isFriday ? 'تسجيل حضور' : 'متاح الجمعة فقط'))}
+                            {isSubmitting ? 'جاري التسجيل...' : (isAttendedToday ? 'تم التحضير' : (isFriday ? 'تسجيل حضور' : 'متاح الجمعة فقط'))}
                         </button>
                     </div>
                 )}
             </div>
+
 
             {showAddShortcut && (
                 <div className="mt-3 flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
@@ -1332,103 +1354,14 @@ export function MasterAdminConsole({ studentsList = [], servantsList = [], atten
 
 
 
-    const classAttendance = attendanceRecords.filter(r => r.stage === selectedStage && r.class === selectedClass) || [];
-
-
-
-    const lastRecord = classAttendance.sort((a, b) => b.date?.seconds - a.date?.seconds)[0];
-
-
-
-
-
-
-
-    let targetFridayStr = '';
-
-
-
-    let targetFridayEndTime = 0;
-
-
-
-
-
-
-
-    if (lastRecord && lastRecord.date?.seconds) {
-
-
-
-      const lastRecordDate = new Date(lastRecord.date.seconds * 1000);
-
-
-
-      const y = lastRecordDate.getFullYear();
-
-
-
-      const m = String(lastRecordDate.getMonth() + 1).padStart(2, '0');
-
-
-
-      const d = String(lastRecordDate.getDate()).padStart(2, '0');
-
-
-
-      targetFridayStr = `${y}-${m}-${d}`;
-
-
-
-      targetFridayEndTime = new Date(y, lastRecordDate.getMonth(), lastRecordDate.getDate(), 23, 59, 59).getTime();
-
-
-
-    } else {
-
-
-
-      const today = new Date();
-
-
-
-      const lastFriday = new Date();
-
-
-
-      lastFriday.setDate(today.getDate() - ((today.getDay() + 2) % 7));
-
-
-
-      const y = lastFriday.getFullYear();
-
-
-
-      const m = String(lastFriday.getMonth() + 1).padStart(2, '0');
-
-
-
-      const d = String(lastFriday.getDate()).padStart(2, '0');
-
-
-
-      targetFridayStr = `${y}-${m}-${d}`;
-
-
-
-      targetFridayEndTime = new Date(y, lastFriday.getMonth(), lastFriday.getDate(), 23, 59, 59).getTime();
-
-
-
-    }
-
-
-
-
-
-
-
     const today = new Date();
+    const lastFriday = new Date();
+    lastFriday.setDate(today.getDate() - ((today.getDay() + 2) % 7));
+    const y = lastFriday.getFullYear();
+    const m = String(lastFriday.getMonth() + 1).padStart(2, '0');
+    const d = String(lastFriday.getDate()).padStart(2, '0');
+    const targetFridayStr = `${y}-${m}-${d}`;
+    const targetFridayEndTime = new Date(y, lastFriday.getMonth(), lastFriday.getDate(), 23, 59, 59).getTime();
 
 
 
@@ -2183,9 +2116,14 @@ export default function ServantDashboard() {
         }
     }, [location.search]);
 
-
+    const [isBulkAttendanceOpen, setIsBulkAttendanceOpen] = useState(false);
+    const [bulkAttendanceLateMode, setBulkAttendanceLateMode] = useState(false);
+    const [isLateDateModalOpen, setIsLateDateModalOpen] = useState(false);
+    const [activeAttendanceDate, setActiveAttendanceDate] = useState(null);
 
     const [selectedStageTab1, setSelectedStageTab1] = useState('الكل');
+
+
 
 
 
@@ -4663,537 +4601,185 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
 
 
 
-    const markAttendance = async (id, pointsToAdd = 5) => {
-
-
-
+    const markAttendance = async (id, pointsToAdd = 5, targetDateOverride = null) => {
         const student = students.find(s => s.id === id);
-
-
-
         if (!student) return;
 
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const targetDateStr = targetDateOverride || activeAttendanceDate || todayStr;
 
+        const [y, m, d] = targetDateStr.split('-').map(Number);
+        const targetDateObj = new Date(y, m - 1, d);
 
-
-
-
-
-        if (new Date().getDay() !== 5) {
-
-
-
+        if (targetDateObj.getDay() !== 5) {
             showToast('تسجيل الحضور متاح فقط يوم الجمعة ⚠️', 'warning');
-
-
-
             return;
-
-
-
         }
 
+        const currentAttendance = student.attendance || [];
+        if (currentAttendance.includes(targetDateStr)) {
+            showToast('تم تسجيل حضور هذا المخدوم بالفعل لهذا اليوم ⚠️', 'warning');
+            return;
+        }
 
+        const servantName = servant?.name || 'الخادم';
+        const safeClassId = student.assignedClass ? getSafeClassId(student.assignedClass) : '';
+        const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
 
+        const newAttendance = [...currentAttendance, targetDateStr];
+        const newPoints = (student.points || 0) + pointsToAdd;
 
+        let newStreak = student.attendanceStreak || 0;
+        let newGifts = student.pendingGifts || 0;
 
+        if (consecutiveGiftEnabled) {
+            const oldStreak = student.attendanceStreak || 0;
+            newStreak = calculateStreak(newAttendance);
+            if (newStreak > 0 && newStreak % 4 === 0 && newStreak > oldStreak) {
+                newGifts = (student.pendingGifts || 0) + 1;
+            }
+        }
 
-
-        const today = new Date();
-
-
-
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-
-
-
-
-
+        // 1. INSTANT Optimistic update (0ms UI latency!)
+        setStudents(prev => prev.map(s => {
+            if (s.id !== id) return s;
+            const updated = {
+                ...s,
+                attendance: newAttendance,
+                points: newPoints
+            };
+            if (consecutiveGiftEnabled) {
+                updated.attendanceStreak = newStreak;
+                updated.pendingGifts = newGifts;
+            }
+            return updated;
+        }));
 
         try {
-
-
-
             const studentRef = doc(db, 'students', id);
-
-
-
-            const attendanceDocId = `${student.id}_${todayStr}`;
-
-
-
+            const attendanceDocId = `${student.id}_${targetDateStr}`;
             const attendanceRef = doc(db, 'attendance', attendanceDocId);
 
-
-
-            const servantName = servant?.name || 'الخادم';
-
-
-
-
-
-
-
-            // 1. Read student document (from cache or network)
-
-
-
-            const studentSnap = await getDoc(studentRef);
-
-
-
-            if (!studentSnap.exists()) {
-
-
-
-                throw new Error('المخدوم غير موجود في قاعدة البيانات');
-
-
-
-            }
-
-
-
-            const currentStudentData = studentSnap.data();
-
-
-
-
-
-
-
-            // 2. Check duplicate
-
-
-
-            const currentAttendance = currentStudentData.attendance || [];
-
-
-
-            if (currentAttendance.includes(todayStr)) {
-
-
-
-                let existingServantName = 'غير معروف';
-
-
-
-                let regTimeStr = 'غير مححدد';
-
-
-
-                try {
-
-
-
-                    const attendanceSnap = await getDoc(attendanceRef);
-
-
-
-                    if (attendanceSnap.exists()) {
-
-
-
-                        const data = attendanceSnap.data();
-
-
-
-                        existingServantName = data.servantName || 'غير معروف';
-
-
-
-                        if (data.updatedAt) {
-
-
-
-                            const regDate = data.updatedAt.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt);
-
-
-
-                            regTimeStr = regDate.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });
-
-
-
-                        }
-
-
-
-                    }
-
-
-
-                } catch (e) {
-
-
-
-                    console.log("Could not load attendance details", e);
-
-
-
-                }
-
-
-
-                throw new Error(`عذراً، الخادم ${existingServantName} قام بتحضير هذا المخدوم بالفعل في تمام الساعة ${regTimeStr}`);
-
-
-
-            }
-
-
-
-
-
-
-
-            const batch = writeBatch(db);
-
-
-
-
-
-
-
-            // 3. Write attendance doc
-
-
-
-            batch.set(attendanceRef, {
-
-
-
+            await setDoc(attendanceRef, {
                 studentId: student.id,
-
-
-
-                date: todayStr,
-
-
-
-                stage: currentStudentData.schoolGrade || '',
-
-
-
-                class: currentStudentData.assignedClass || '',
-
-
-
+                date: targetDateStr,
+                stage: student.schoolGrade || '',
+                class: student.assignedClass || '',
                 status: 'present',
-
-
-
                 servantName: servantName,
-
-
-
                 pointsAdded: pointsToAdd,
-
-
-
                 updatedAt: new Date()
-
-
-
             }, { merge: true });
 
-
-
-
-
-
-
-            // 4. Update student record
-
-
-
-            const safeClassId = currentStudentData.assignedClass ? getSafeClassId(currentStudentData.assignedClass) : '';
-
-
-
-            const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
-
-
-
-
-
-
-
-            const newAttendance = [...currentAttendance, todayStr];
-
-
-
-            const newPoints = (currentStudentData.points || 0) + pointsToAdd;
-
-
-
-
-
-
-
             const studentUpdates = {
-
-
-
                 attendance: newAttendance,
-
-
-
                 points: newPoints
-
-
-
             };
 
-
-
-
-
-
-
             if (consecutiveGiftEnabled) {
-
-
-
-                const newStreak = (currentStudentData.attendanceStreak || 0) + 1;
-
-
-
-                let newGifts = currentStudentData.pendingGifts || 0;
-
-
-
-                if (newStreak > 0 && newStreak % 4 === 0) {
-
-
-
-                    newGifts += 1;
-
-
-
-                }
-
-
-
                 studentUpdates.attendanceStreak = newStreak;
-
-
-
                 studentUpdates.pendingGifts = newGifts;
-
-
-
             }
 
+            await updateDoc(studentRef, studentUpdates);
 
-
-
-
-
-
-            batch.update(studentRef, studentUpdates);
-
-
-
-
-
-
-
-            // 5. Add pointsHistory document
-
-
-
-            const historyRef = doc(collection(db, 'pointsHistory'));
-
-
-
-            batch.set(historyRef, {
-
-
-
-                studentId: student.id,
-
-
-
-                amount: Number(pointsToAdd),
-
-
-
-                points: Number(pointsToAdd),
-
-
-
-                reason: `حضور يوم الجمعة (${servantName})`,
-
-
-
-                createdAt: new Date()
-
-
-
-            });
-
-
-
-
-
-
-
-            // Commit batch (works offline)
-
-
-
-            await batch.commit();
-
-
-
-            // Optimistic local state update so UI reflects changes immediately (even offline)
-            setStudents(prev => prev.map(s => {
-                if (s.id !== id) return s;
-                const updated = {
-                    ...s,
-                    attendance: newAttendance,
-                    points: newPoints
-                };
-                if (consecutiveGiftEnabled) {
-                    updated.attendanceStreak = (s.attendanceStreak || 0) + 1;
-                    if (updated.attendanceStreak > 0 && updated.attendanceStreak % 4 === 0) {
-                        updated.pendingGifts = (s.pendingGifts || 0) + 1;
-                    }
-                }
-                return updated;
-            }));
-
-
-
+            if (pointsToAdd > 0) {
+                const historyRef = doc(collection(db, 'pointsHistory'));
+                await setDoc(historyRef, {
+                    studentId: student.id,
+                    amount: Number(pointsToAdd),
+                    points: Number(pointsToAdd),
+                    reason: targetDateStr !== todayStr 
+                        ? `تسجيل حضور متأخر (${targetDateStr}) بواسطة (${servantName})`
+                        : `حضور يوم الجمعة (${servantName})`,
+                    attendanceDate: targetDateStr,
+                    createdAt: new Date()
+                });
+            }
 
             showToast('تم تسجيل الحضور وإضافة النقاط بنجاح ✅', 'success');
-
-
-
         } catch (error) {
-
-
-
             console.error("Error marking attendance:", error);
-
-
-
-            showToast(error.message || 'حدث خطأ أثناء تسجيل الحضور', 'error');
-
-
-
+            const isOffline = !navigator.onLine || error?.code === 'unavailable';
+            if (isOffline) {
+                showToast('تم تسجيل الحضور وإضافة النقاط (أوفلاين) 📶', 'success');
+            } else {
+                // Rollback optimistic update only on online explicit errors
+                setStudents(prev => prev.map(s => {
+                    if (s.id !== id) return s;
+                    return student;
+                }));
+                showToast(error.message || 'حدث خطأ أثناء تسجيل الحضور', 'error');
+            }
         }
-
-
-
     };
 
-
-
-    const markLiturgy = async (id, isChecked) => {
-
+    const markLiturgy = async (id, isChecked, targetDateOverride = null) => {
         const student = students.find(s => s.id === id);
-
         if (!student) return;
 
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const targetDateStr = targetDateOverride || activeAttendanceDate || todayStr;
 
+        const [y, m, d] = targetDateStr.split('-').map(Number);
+        const targetDateObj = new Date(y, m - 1, d);
 
-        if (new Date().getDay() !== 5) {
-
+        if (targetDateObj.getDay() !== 5) {
             showToast('تسجيل حضور القداس متاح فقط يوم الجمعة ⚠️', 'warning');
-
             return;
-
         }
 
+        const currentLiturgy = student.liturgyAttendance || [];
+        let newLiturgy = currentLiturgy;
 
+        if (isChecked) {
+            if (!currentLiturgy.includes(targetDateStr)) {
+                newLiturgy = [...currentLiturgy, targetDateStr];
+            }
+        } else {
+            newLiturgy = currentLiturgy.filter(dateItem => dateItem !== targetDateStr);
+        }
 
-        const today = new Date();
-
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-
+        // Optimistic local state update so UI reflects changes immediately (even offline)
+        setStudents(prev => prev.map(s => {
+            if (s.id !== id) return s;
+            return {
+                ...s,
+                liturgyAttendance: newLiturgy
+            };
+        }));
 
         try {
-
             const studentRef = doc(db, 'students', id);
-
-            const attendanceDocId = `${id}_${todayStr}`;
-
+            const attendanceDocId = `${id}_${targetDateStr}`;
             const attendanceRef = doc(db, 'attendance', attendanceDocId);
-
             const servantName = servant?.name || 'الخادم';
-
             const stage = student.schoolGrade || '';
-
             const className = student.assignedClass || '';
 
+            updateDoc(studentRef, {
+                liturgyAttendance: newLiturgy
+            }).catch(e => console.warn("Background liturgy updateDoc cached offline:", e));
 
+            setDoc(attendanceRef, {
+                studentId: id,
+                date: targetDateStr,
+                stage: stage,
+                class: className,
+                servantName: servantName,
+                attendedLiturgy: isChecked,
+                updatedAt: new Date()
+            }, { merge: true }).catch(e => console.warn("Background liturgy setDoc cached offline:", e));
 
-            const batch = writeBatch(db);
-
-
-
-            if (isChecked) {
-
-                batch.update(studentRef, {
-
-                    liturgyAttendance: arrayUnion(todayStr)
-
-                });
-
-                batch.set(attendanceRef, {
-
-                    studentId: id,
-
-                    date: todayStr,
-
-                    stage: stage,
-
-                    class: className,
-
-                    servantName: servantName,
-
-                    attendedLiturgy: true,
-
-                    updatedAt: new Date()
-
-                }, { merge: true });
-
-            } else {
-
-                batch.update(studentRef, {
-
-                    liturgyAttendance: arrayRemove(todayStr)
-
-                });
-
-                batch.set(attendanceRef, {
-
-                    attendedLiturgy: false,
-
-                    updatedAt: new Date()
-
-                }, { merge: true });
-
-            }
-
-
-
-            await batch.commit();
-
-            showToast('تم تحديث حضور القداس بنجاح ⛪', 'success');
-
+            showToast(isChecked ? 'تم تسجيل حضور القداس ✅' : 'تم إلغاء حضور القداس ⚪', 'info');
         } catch (error) {
-
-            console.error("Error marking liturgy attendance:", error);
-
-            showToast('حدث خطأ أثناء تحديث حضور القداس', 'error');
-
+            console.error("Error marking liturgy:", error);
+            showToast(isChecked ? 'تم تسجيل حضور القداس (أوفلاين) 📶' : 'تم إلغاء حضور القداس (أوفلاين) 📶', 'info');
         }
-
     };
+
 
 
 
@@ -5262,37 +4848,40 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
 
 
                 let pointsAdded = 0;
-
-
-
                 if (attendanceSnap.exists()) {
-
-
-
                     pointsAdded = attendanceSnap.data().pointsAdded || 0;
-
-
-
                 }
 
+                // 2. Find matching pointsHistory documents & sum points
+                let historyPointsAdded = 0;
+                const historyDocsToDelete = [];
 
+                const q = query(collection(db, 'pointsHistory'), where('studentId', '==', id));
+                const querySnap = await getDocs(q);
 
+                for (const docSnap of querySnap.docs) {
+                    const data = docSnap.data();
+                    const reason = data.reason || '';
+                    const attDate = data.attendanceDate || '';
+                    const createdAtDate = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+                    const createdAtStr = `${createdAtDate.getFullYear()}-${String(createdAtDate.getMonth() + 1).padStart(2, '0')}-${String(createdAtDate.getDate()).padStart(2, '0')}`;
 
+                    const isMatch = attDate === dateStr || reason.includes(dateStr) || (reason.includes('حضور') && createdAtStr === dateStr);
+                    if (isMatch) {
+                        const pts = Number(data.amount || data.points || 0);
+                        if (pts > 0) {
+                            historyPointsAdded += pts;
+                        }
+                        historyDocsToDelete.push(docSnap.ref);
+                    }
+                }
 
-
+                const totalPointsToDeduct = pointsAdded > 0 ? pointsAdded : historyPointsAdded;
+                const newPoints = Math.max(0, (student?.points || 0) - totalPointsToDeduct);
 
                 const updates = { 
-
-
-
                     attendance: newAttendance,
-
-
-
-                    points: Math.max(0, (student?.points || 0) - pointsAdded)
-
-
-
+                    points: newPoints
                 };
 
 
@@ -5325,71 +4914,41 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
 
 
 
+                // Optimistic local state update so points on screen update immediately
+                setStudents(prev => prev.map(s => {
+                    if (s.id !== id) return s;
+                    return {
+                        ...s,
+                        attendance: newAttendance,
+                        liturgyAttendance: updates.liturgyAttendance || s.liturgyAttendance || [],
+                        points: newPoints,
+                        ...(consecutiveGiftEnabled ? { 
+                            attendanceStreak: updates.attendanceStreak,
+                            ...(updates.pendingGifts !== undefined ? { pendingGifts: updates.pendingGifts } : {})
+                        } : {})
+                    };
+                }));
+
                 await updateDoc(studentRef, updates);
-
-
-
-                await deleteDoc(attendanceRef);
-
-
-
+                if (attendanceSnap.exists()) {
+                    await deleteDoc(attendanceRef);
+                }
 
 
 
 
-                // Find and delete corresponding pointsHistory document
 
 
 
-                const q = query(collection(db, 'pointsHistory'), where('studentId', '==', id));
 
 
 
-                const querySnap = await getDocs(q);
 
+                for (const docRef of historyDocsToDelete) {
+                    await deleteDoc(docRef);
+                }
 
-
-                querySnap.forEach(async (docSnap) => {
-
-
-
-                    const data = docSnap.data();
-
-
-
-                    if (data.reason && data.reason.includes('حضور')) {
-
-
-
-                        const createdAtDate = data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-
-
-
-                        const createdAtStr = `${createdAtDate.getFullYear()}-${String(createdAtDate.getMonth() + 1).padStart(2, '0')}-${String(createdAtDate.getDate()).padStart(2, '0')}`;
-
-
-
-                        if (createdAtStr === dateStr) {
-
-
-
-                            await deleteDoc(docSnap.ref);
-
-
-
-                        }
-
-
-
-                    }
-
-
-
-                });
-
-
-
-                alert('تم حذف الحضور بنجاح ✅');
+                showToast(`تم مسح حضور يوم (${dateStr}) وخصم (${totalPointsToDeduct}) صفة بنجاح ✅`, 'success');
 
 
 
@@ -5629,19 +5188,10 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
 
 
 
-        const term = searchTerm.toLowerCase();
-
-
-
-        const searchInPhones = (s.phones || []).some(phone => (phone || '').toLowerCase().includes(term));
-
-
-
-        const matchesSearch = ((s.name || '').toLowerCase().includes(term) || (s.code || '').toLowerCase().includes(term) || searchInPhones);
-
-
-
-        if (!matchesSearch) return false;
+        if (searchTerm && searchTerm.trim()) {
+            const combinedText = [s.name, s.code, s.phone, ...(s.phones || [])].filter(Boolean).join(' ');
+            if (!matchArabicText(searchTerm, combinedText)) return false;
+        }
 
 
 
@@ -5673,19 +5223,10 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
 
 
 
-        const term = searchTerm.toLowerCase();
-
-
-
-        const searchInPhones = (s.phones || []).some(phone => (phone || '').toLowerCase().includes(term));
-
-
-
-        const matchesSearch = ((s.name || '').toLowerCase().includes(term) || (s.code || '').toLowerCase().includes(term) || searchInPhones);
-
-
-
-        if (!matchesSearch) return false;
+        if (searchTerm && searchTerm.trim()) {
+            const combinedText = [s.name, s.code, s.phone, ...(s.phones || [])].filter(Boolean).join(' ');
+            if (!matchArabicText(searchTerm, combinedText)) return false;
+        }
 
 
 
@@ -6444,69 +5985,79 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
                 </button>
             </div>
 
-
-
-
-
-
-
             {activeTab === 'notifications' && (
                 <NotificationSettings />
             )}
 
             {activeTab === 'attendance' && (
-
-
-
                 <>
+                    {/* Active Late Mode Banner */}
+                    {activeAttendanceDate && (
+                        <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/50 rounded-2xl mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl">
+                                    <Clock size={20} />
+                                </div>
+                                <div>
+                                    <div className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                                        وضع تسجيل الحضور المتأخر نشط حالياً ⏳
+                                    </div>
+                                    <div className="text-sm font-black text-slate-800 dark:text-slate-100">
+                                        الجمعة: {activeAttendanceDate}
+                                    </div>
+                                </div>
+                            </div>
 
+                            <div className="flex items-center gap-2 self-end sm:self-center">
+                                <button
+                                    onClick={() => setIsLateDateModalOpen(true)}
+                                    className="px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold rounded-xl text-xs transition-colors cursor-pointer border border-amber-400/30"
+                                >
+                                    ✏️ تغيير الجمعة
+                                </button>
+                                <button
+                                    onClick={() => setActiveAttendanceDate(null)}
+                                    className="px-3.5 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                                >
+                                    🔄 العودة لتاريخ اليوم
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
+                    {/* Action Bar */}
+                    <div className="flex flex-col sm:flex-row gap-3 mb-8 items-stretch sm:items-center">
+                        <div className="relative flex-1">
+                            <input
+                                type="text"
+                                placeholder="بحث بالاسم أو الكود..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full p-4 pr-12 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
+                            />
+                            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-555" />
+                        </div>
 
-                    <div className="relative mb-8">
+                        <button
+                            onClick={() => { setBulkAttendanceLateMode(!!activeAttendanceDate); setIsBulkAttendanceOpen(true); }}
+                            className="flex items-center justify-center gap-2 py-4 px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl text-sm shadow-md shadow-blue-500/20 transition-all cursor-pointer border-none whitespace-nowrap"
+                        >
+                            <Sparkles size={18} />
+                            <span>تسجيل دفعة واحدة 🚀</span>
+                        </button>
 
-
-
-                        <input
-
-
-
-                            type="text"
-
-
-
-                            placeholder="بحث بالاسم أو الكود..."
-
-
-
-                            value={searchTerm}
-
-
-
-                            onChange={(e) => setSearchTerm(e.target.value)}
-
-
-
-                            className="w-full p-4 pr-12 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
-
-
-
-                        />
-
-
-
-                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-555" />
-
-
-
+                        <button
+                            onClick={() => setIsLateDateModalOpen(true)}
+                            className="flex items-center justify-center gap-2 py-4 px-5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm shadow-md shadow-amber-500/20 transition-all cursor-pointer border-none whitespace-nowrap"
+                        >
+                            <Clock size={18} />
+                            <span>تسجيل حضور متأخر ⏳</span>
+                        </button>
                     </div>
 
 
-
-
-
-
-
                     <div className="flex flex-col sm:flex-row gap-3 mb-8 items-center bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors duration-300">
+
 
 
 
@@ -6718,14 +6269,10 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
 
 
                                         isBonus={false}
-
-
-
                                         storeVisible={isStoreVisibleForStudent(student, storeConfigs)}
-
-
-
+                                        activeAttendanceDate={activeAttendanceDate}
                                     />
+
 
 
 
@@ -6775,13 +6322,115 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
 
             )}
 
+            {activeTab === 'late_attendance' && (
+                <>
+                    <div className="p-5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-2xl mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl">
+                                <CalendarDays size={24} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base">
+                                    تسجيل حضور متأخر (أثر رجعي) ⏳
+                                </h3>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    يتيح لك هذا الخيار إدخال وتسجيل حضور المخدومين لأي يوم سابق (مثل الجمعة الماضية) وتخصيص الصفات فوراً.
+                                </p>
+                            </div>
+                        </div>
 
+                        <button
+                            onClick={() => { setBulkAttendanceLateMode(true); setIsBulkAttendanceOpen(true); }}
+                            className="py-3 px-6 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm shadow-md shadow-amber-500/20 transition-all cursor-pointer border-none whitespace-nowrap flex items-center justify-center gap-2"
+                        >
+                            <Sparkles size={18} />
+                            <span>فتح التسجيل الجماعي المتأخر 🚀</span>
+                        </button>
+                    </div>
 
+                    <div className="flex flex-col sm:flex-row gap-3 mb-8 items-stretch sm:items-center">
+                        <div className="relative flex-1">
+                            <input
+                                type="text"
+                                placeholder="بحث بالاسم أو الكود..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full p-4 pr-12 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold transition-colors duration-300"
+                            />
+                            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-555" />
+                        </div>
 
+                        <button
+                            onClick={() => { setBulkAttendanceLateMode(true); setIsBulkAttendanceOpen(true); }}
+                            className="flex items-center justify-center gap-2 py-4 px-6 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm shadow-md shadow-amber-500/20 transition-all cursor-pointer border-none whitespace-nowrap"
+                        >
+                            <Sparkles size={18} />
+                            <span>تسجيل دفعة واحدة متأخر 🚀</span>
+                        </button>
+                    </div>
 
+                    <div className="flex flex-col sm:flex-row gap-3 mb-8 items-center bg-white dark:bg-[#1e293b] p-4 rounded-xl border border-slate-200 dark:border-slate-800 transition-colors duration-300">
+                        <span className="font-bold text-slate-650 dark:text-slate-400">تصفية حسب:</span>
+                        <div className="flex gap-3 flex-wrap flex-1">
+                            <select
+                                value={selectedStageTab1}
+                                onChange={e => { setSelectedStageTab1(e.target.value); setSelectedClassTab1('الكل'); }}
+                                className="w-full sm:w-44 p-3 bg-slate-50 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+                                disabled={(isStageServant || isClassServant) && !!myStage}
+                            >
+                                <option value="الكل">كل المراحل</option>
+                                {Object.keys(STAGE_CLASS_MAP).map(stage => (
+                                    <option key={stage} value={stage}>{stage}</option>
+                                ))}
+                            </select>
 
+                            <select
+                                value={selectedClassTab1}
+                                onChange={e => setSelectedClassTab1(e.target.value)}
+                                className="w-full sm:w-48 p-3 bg-slate-50 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300"
+                                disabled={selectedStageTab1 === 'الكل' || ((isClassServant || isStageServant) && myClasses.length <= 1)}
+                            >
+                                {myClasses.length > 1 && <option value="الكل">كل الفصول</option>}
+                                {myClasses.map(cls => (
+                                    <option key={cls} value={cls}>{cls}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {studentsLoading ? (
+                        <div className="py-20 text-center space-y-4">
+                            <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-600 rounded-full animate-spin mx-auto"></div>
+                            <p className="text-xl font-bold text-slate-400 dark:text-slate-555">جاري تحميل قائمة المخدومين...</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {filteredStudentsTab1.map(student => {
+                                const safeClassId = getSafeClassId(student.assignedClass);
+                                const consecutiveGiftEnabled = !!attendanceConfigs[safeClassId]?.consecutiveGiftEnabled;
+                                return (
+                                    <StudentRow 
+                                        key={student.id} 
+                                        student={student} 
+                                        markAttendance={markAttendance}
+                                        markLiturgy={markLiturgy}
+                                        addBonus={addBonus}
+                                        consecutiveGiftEnabled={consecutiveGiftEnabled}
+                                    />
+                                );
+                            })}
+                            {filteredStudentsTab1.length === 0 && (
+                                <div className="py-16 text-center text-slate-400">
+                                    لا يوجد مخدومين يتطابقون مع خيارات البحث والتصفية.
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
 
             {activeTab === 'bonus' && (
+
 
 
 
@@ -9804,12 +9453,29 @@ const mergedAddresses = student.address ? [student.address.trim()] : [];
 
 
 
+            <LateAttendanceDateModal
+                isOpen={isLateDateModalOpen}
+                onClose={() => setIsLateDateModalOpen(false)}
+                onSelectDate={(fridayDateStr) => {
+                    setActiveAttendanceDate(fridayDateStr);
+                }}
+            />
+
+            <BulkAttendanceModal
+                isOpen={isBulkAttendanceOpen}
+                onClose={() => setIsBulkAttendanceOpen(false)}
+                isLateMode={bulkAttendanceLateMode}
+                defaultDate={activeAttendanceDate}
+                students={students}
+                servant={servant}
+                attendanceConfigs={attendanceConfigs}
+                storeConfigs={storeConfigs}
+                onSuccess={(updatedList) => {
+                    setStudents(updatedList);
+                }}
+            />
+
         </div>
-
-
-
     );
-
-
-
 }
+

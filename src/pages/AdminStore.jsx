@@ -10,11 +10,15 @@ import {
     Save, 
     ToggleLeft, 
     ToggleRight,
-    Star,
-    Package
+    Star, 
+    Package,
+    RefreshCw,
+    CheckCircle,
+    Camera
 } from 'lucide-react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { initOfflineQueueListener, addPendingImageTask, fileToDataURL, createThumbnailDataURL, processOfflineQueue } from '../services/offlineQueue';
 
 const STAGE_CLASS_MAP = {
     'ابتدائي': ['حضانة/ملائكة', 'أولى ابتدائى', 'ثانية ابتدائى', 'ثالع فصول ابتدائي', 'ثالثة ابتدائى', 'رابعة ابتدائى', 'خامسة ابتدائى', 'سادسة ابتدائي'],
@@ -46,6 +50,40 @@ const getSafeClassId = (className) => {
     if (!className) return '';
     return className.replace(/\//g, '-');
 };
+
+function SelectedFilePreview({ file, onRemove }) {
+    const [previewUrl, setPreviewUrl] = useState('');
+
+    useEffect(() => {
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        setPreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [file]);
+
+    return (
+        <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 border-blue-500/40 dark:border-blue-400/30 overflow-hidden group shadow-sm bg-slate-100 dark:bg-slate-800 flex-shrink-0">
+            {previewUrl ? (
+                <img src={previewUrl} alt="معاينة" className="w-full h-full object-cover" />
+            ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                    <ImageIcon size={24} />
+                </div>
+            )}
+            <button
+                type="button"
+                onClick={onRemove}
+                className="absolute top-1.5 right-1.5 w-6 h-6 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center shadow-md transition-all cursor-pointer z-10 hover:scale-110 active:scale-95"
+                title="حذف الصورة"
+            >
+                <X size={14} />
+            </button>
+            <div className="absolute bottom-0 inset-x-0 bg-black/60 backdrop-blur-[2px] text-[10px] text-white text-center py-0.5 font-bold truncate px-1">
+                جديدة
+            </div>
+        </div>
+    );
+}
 
 function StoreSchedulePanel({ 
     isGeneralAdmin, 
@@ -427,10 +465,37 @@ export default function AdminStore() {
     const [uploading, setUploading] = useState(false);
     const [formData, setFormData] = useState({ id: null, name: '', description: '', price: '', stock: '', images: [], assignedClass: '', assignedClasses: [], stage: 'الكل', visible: true });
     const [selectedFiles, setSelectedFiles] = useState([]);
+    const [showImageSourceModal, setShowImageSourceModal] = useState(false);
     const [storeFilterStage, setStoreFilterStage] = useState('الكل');
     const [storeFilterClass, setStoreFilterClass] = useState('');
 
+    const resetForm = () => {
+        setFormData({ 
+            id: null, 
+            name: '', 
+            description: '', 
+            price: '', 
+            stock: '', 
+            images: [], 
+            assignedClass: '', 
+            assignedClasses: (!isGeneralAdmin && isClassServant) ? myClasses : [], 
+            stage: isGeneralAdmin ? 'الكل' : myStage, 
+            visible: true 
+        });
+        setSelectedFiles([]);
+        setShowImageSourceModal(false);
+    };
+
+    const handleToggleForm = () => {
+        resetForm();
+        setShowForm(prev => !prev);
+    };
+
     const isAuthorized = isGeneralAdmin || isServant;
+
+    useEffect(() => {
+        return initOfflineQueueListener();
+    }, []);
     
     // حساب الفصول المتاحة للنظام بشكل معزول ومستقر برمجياً
     const availableClasses = useMemo(() => {
@@ -522,7 +587,7 @@ export default function AdminStore() {
         const unsub = onSnapshot(q, (snapshot) => {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
-            const filteredList = isGeneralAdmin 
+        const filteredList = isGeneralAdmin 
                 ? list 
                 : list.filter(p => {
                     const productStage = cleanArabicStr(p.stage || 'الكل');
@@ -550,85 +615,132 @@ export default function AdminStore() {
     if (authLoading) return <div className="p-20 text-center font-bold">جاري التحقق بأمان...</div>;
     if (!isAuthorized) return <Navigate to="/admin/login" replace />;
 
+    const galleryInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
+
     const handleFileChange = (e) => {
-        if (e.target.files) setSelectedFiles(Array.from(e.target.files));
+        if (e.target.files && e.target.files.length > 0) {
+            const newFiles = Array.from(e.target.files);
+            setSelectedFiles(prev => [...prev, ...newFiles]);
+            e.target.value = '';
+        }
+    };
+
+    const handleRemoveNewFile = (indexToRemove) => {
+        setSelectedFiles(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    };
+
+    const handleRemoveExistingImage = (indexToRemove) => {
+        setFormData(prev => ({
+            ...prev,
+            images: prev.images.filter((_, idx) => idx !== indexToRemove)
+        }));
     };
 
     const handleSaveProduct = async (e) => {
         e.preventDefault();
-        
-        setUploading(true);
-        try {
-            let uploadedUrls = [...formData.images];
-            if (selectedFiles.length > 0) {
-                const uploadPromises = selectedFiles.map(async (file) => {
-                    const fd = new FormData();
-                    fd.append('image', file);
-                    const response = await fetch(`https://api.imgbb.com/1/upload?key=5b981ef8e6073a4244e0fd1a51cf5876`, {
-                        method: 'POST',
-                        body: fd
-                    });
-                    const resData = await response.json();
-                    return resData.data.url;
-                });
-                const newUrls = await Promise.all(uploadPromises);
-                uploadedUrls = [...uploadedUrls, ...newUrls];
-            }
+        if (uploading) return;
 
-            let productStage = 'الكل';
-            if (isGeneralAdmin) {
-                productStage = formData.stage || 'الكل';
-            } else if (isServant && servant) {
-                productStage = myStage;
-            }
+        // ── Step 1: Snapshot ALL form state & files into locals ────────────────
+        const snapFormData = { ...formData };
+        const snapFiles    = [...selectedFiles];
+        const isEditing    = !!snapFormData.id;
 
-            const currentStageClasses = STAGE_CLASS_MAP[productStage] || [];
-            const isAllSelected = currentStageClasses.length > 0 && currentStageClasses.every(cls => formData.assignedClasses?.includes(cls));
+        // ── Step 2: Close modal INSTANTLY (<50ms) ─────────────────────────────
+        setShowForm(false);
+        resetForm();
 
-            let targetClass = '';
-            let selectedClasses = [];
+        // ── Step 3: All heavy work runs silently in the background ─────────────
+        (async () => {
+            try {
+                // 3a. Build thumbnail previews (canvas resize – no network)
+                const thumbUrls = await Promise.all(
+                    snapFiles.map(file => createThumbnailDataURL(file))
+                );
 
-            if (isClassServant) {
-                selectedClasses = (formData.assignedClasses || []).filter(cls => myClasses.includes(cls));
-                targetClass = selectedClasses[0] || '';
-            } else if (productStage !== 'الكل' && !isAllSelected) {
-                selectedClasses = (formData.assignedClasses || []).filter(cls => currentStageClasses.includes(cls));
-                if (selectedClasses.length === 1) {
-                    targetClass = selectedClasses[0];
+                const uploadedUrls = [...snapFormData.images, ...thumbUrls];
+                const pendingFilesToQueue = snapFiles.map((file, i) => ({
+                    file,
+                    tempUrlIndex: snapFormData.images.length + i
+                }));
+
+                // 3b. Resolve stage / class info from snapshot
+                let productStage = 'الكل';
+                if (isGeneralAdmin) {
+                    productStage = snapFormData.stage || 'الكل';
+                } else if (isServant && servant) {
+                    productStage = myStage;
                 }
+
+                const currentStageClasses = STAGE_CLASS_MAP[productStage] || [];
+                const isAllSelected =
+                    currentStageClasses.length > 0 &&
+                    currentStageClasses.every(cls => snapFormData.assignedClasses?.includes(cls));
+
+                let targetClass = '';
+                let selectedClasses = [];
+
+                if (isClassServant) {
+                    selectedClasses = (snapFormData.assignedClasses || []).filter(cls => myClasses.includes(cls));
+                    targetClass = selectedClasses[0] || '';
+                } else if (productStage !== 'الكل' && !isAllSelected) {
+                    selectedClasses = (snapFormData.assignedClasses || []).filter(cls => currentStageClasses.includes(cls));
+                    if (selectedClasses.length === 1) targetClass = selectedClasses[0];
+                }
+
+                const isPending = pendingFilesToQueue.length > 0 || (snapFormData.id && snapFormData.pendingUpload);
+
+                const pData = {
+                    name: snapFormData.name,
+                    description: snapFormData.description || '',
+                    price: parseInt(snapFormData.price, 10),
+                    stock: Math.max(0, parseInt(snapFormData.stock, 10) || 0),
+                    images: uploadedUrls,
+                    assignedClass: targetClass,
+                    assignedClasses: selectedClasses,
+                    stage: productStage,
+                    pendingUpload: !!isPending,
+                    updatedAt: new Date().toISOString()
+                };
+
+                // 3c. Write to Firestore
+                let docId = snapFormData.id;
+                if (docId) {
+                    pData.visible = typeof snapFormData.visible === 'boolean' ? snapFormData.visible : true;
+                    await updateDoc(doc(db, 'products', docId), pData);
+                } else {
+                    pData.createdAt = new Date().toISOString();
+                    pData.visible = true;
+                    const docRef = await addDoc(collection(db, 'products'), pData);
+                    docId = docRef.id;
+                }
+
+                // 3d. Queue all full-res images in IndexedDB (await ALL first)
+                if (pendingFilesToQueue.length > 0 && docId) {
+                    await Promise.all(
+                        pendingFilesToQueue.map(item =>
+                            addPendingImageTask({
+                                productId: docId,
+                                file: item.file,
+                                tempUrlIndex: item.tempUrlIndex
+                            })
+                        )
+                    );
+                    // 3e. ONLY NOW start background ImgBB upload (all tasks are registered in IndexedDB)
+                    processOfflineQueue().catch(err => console.error('Background upload error:', err));
+                }
+
+                setTimeout(() => {
+                    alert(isEditing ? 'تم تعديل المنتج بنجاح ✅' : 'تم إضافة المنتج بنجاح ✅');
+                }, 50);
+
+            } catch (error) {
+                console.error('Error saving product:', error);
+                alert('حدث خطأ أثناء حفظ المنتج ❌');
             }
-
-            const pData = {
-                name: formData.name,
-                description: formData.description || '',
-                price: parseInt(formData.price, 10),
-                stock: Math.max(0, parseInt(formData.stock, 10) || 0),
-                images: uploadedUrls,
-                assignedClass: targetClass,
-                assignedClasses: selectedClasses,
-                stage: productStage,
-                updatedAt: new Date().toISOString()
-            };
-
-            if (formData.id) {
-                pData.visible = typeof formData.visible === 'boolean' ? formData.visible : true;
-                await updateDoc(doc(db, 'products', formData.id), pData);
-            } else {
-                pData.createdAt = new Date().toISOString();
-                pData.visible = true;
-                await addDoc(collection(db, 'products'), pData);
-            }
-
-            setFormData({ id: null, name: '', description: '', price: '', stock: '', images: [], assignedClass: '', assignedClasses: [], stage: 'الكل', visible: true });
-            setSelectedFiles([]);
-            setShowForm(false);
-            alert('تم الحفظ بنجاح ✅');
-        } catch (error) {
-            alert('خطأ في الحفظ ❌');
-        } finally {
-            setUploading(false);
-        }
+        })();
     };
+
 
     const handleEdit = (p) => {
         const stage = p.stage || 'الكل';
@@ -762,7 +874,7 @@ export default function AdminStore() {
                             </select>
                         </div>
                     )}
-                    <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:bg-blue-700 transition-all mr-auto md:mr-0 cursor-pointer">
+                    <button onClick={handleToggleForm} className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold shadow-md hover:bg-blue-700 transition-all mr-auto md:mr-0 cursor-pointer">
                         {showForm ? 'إلغاء' : 'إضافة منتج'}
                     </button>
                 </div>
@@ -894,10 +1006,153 @@ export default function AdminStore() {
                             </div>
                         </div>
                         <textarea className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-400 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="الوصف" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} rows="3" />
-                        <input type="file" multiple onChange={handleFileChange} className="block w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 dark:file:bg-blue-955/30 file:text-blue-700 dark:file:text-blue-400 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/30 cursor-pointer" />
-                        <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold shadow-md hover:bg-blue-700 cursor-pointer" disabled={uploading}>
-                            {uploading ? 'جاري الحفظ...' : 'حفظ المنتج'}
-                        </button>
+                        
+                        {/* قسم اختيار ومعاينة الصور بمربعات عصرية مع زر + */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">
+                                صور المنتج:
+                            </label>
+                            
+                            <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl min-h-[120px]">
+                                {/* الصور المحفوظة مسبقاً في حالة التعديل */}
+                                {formData.images?.map((imgUrl, idx) => (
+                                    <div key={`existing-${idx}`} className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 border-slate-200 dark:border-slate-700 overflow-hidden group shadow-sm bg-slate-100 dark:bg-slate-800 flex-shrink-0">
+                                        <img src={imgUrl} alt={`صورة ${idx + 1}`} className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveExistingImage(idx)}
+                                            className="absolute top-1.5 right-1.5 w-6 h-6 bg-rose-600 hover:bg-rose-700 text-white rounded-full flex items-center justify-center shadow-md transition-all cursor-pointer z-10 hover:scale-110 active:scale-95"
+                                            title="حذف الصورة"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {/* الصور المختارة حديثاً قبل الحفظ */}
+                                {selectedFiles.map((file, idx) => (
+                                    <SelectedFilePreview
+                                        key={`new-${idx}-${file.name}-${file.lastModified || idx}`}
+                                        file={file}
+                                        onRemove={() => handleRemoveNewFile(idx)}
+                                    />
+                                ))}
+
+                                {/* مربع زر الإضافة (+) لإضافة صورة أو صور إضافية */}
+                                <button
+                                    type="button"
+                                    onClick={() => setShowImageSourceModal(true)}
+                                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 border-dashed border-blue-400 dark:border-blue-500/60 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer flex-shrink-0 group shadow-sm active:scale-95"
+                                >
+                                    <div className="w-9 h-9 rounded-full bg-blue-600 dark:bg-blue-500 text-white flex items-center justify-center shadow group-hover:scale-110 transition-transform">
+                                        <Plus size={20} />
+                                    </div>
+                                    <span className="text-[11px] font-bold">إضافة صورة</span>
+                                </button>
+
+                                {/* Input المعرض والملفات */}
+                                <input
+                                    ref={galleryInputRef}
+                                    type="file"
+                                    multiple
+                                    accept="image/*"
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                />
+
+                                {/* Input الكاميرا المباشرة */}
+                                <input
+                                    ref={cameraInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                />
+                            </div>
+                        </div>
+
+                        {/* نافذة اختيار مصدر الصورة (كاميرا أو معرض) */}
+                        {showImageSourceModal && (
+                            <div 
+                                className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 z-50 animate-in fade-in duration-200"
+                                onClick={() => setShowImageSourceModal(false)}
+                            >
+                                <div 
+                                    className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
+                                    onClick={e => e.stopPropagation()}
+                                    dir="rtl"
+                                >
+                                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                                        <h4 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                            <ImageIcon className="text-blue-600" size={20} />
+                                            إضافة صورة للمنتج
+                                        </h4>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowImageSourceModal(false)}
+                                            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                        >
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-3 pt-1">
+                                        {/* خيار الكاميرا */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowImageSourceModal(false);
+                                                setTimeout(() => cameraInputRef.current?.click(), 100);
+                                            }}
+                                            className="w-full p-4 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/30 hover:bg-blue-100/80 dark:hover:bg-blue-900/50 flex items-center gap-4 text-right transition-all cursor-pointer group shadow-sm active:scale-[0.98]"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform flex-shrink-0">
+                                                <Camera size={24} />
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-slate-800 dark:text-slate-100 text-base">التقاط بالكاميرا 📸</div>
+                                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">فتح الكاميرا والتقاط صورة مباشرة الآن</div>
+                                            </div>
+                                        </button>
+
+                                        {/* خيار المعرض / الملفات */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowImageSourceModal(false);
+                                                setTimeout(() => galleryInputRef.current?.click(), 100);
+                                            }}
+                                            className="w-full p-4 rounded-2xl border-2 border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-950/30 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50 flex items-center gap-4 text-right transition-all cursor-pointer group shadow-sm active:scale-[0.98]"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform flex-shrink-0">
+                                                <ImageIcon size={24} />
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-slate-800 dark:text-slate-100 text-base">اختيار من المعرض 🖼️</div>
+                                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">اختيار صورة أو عدة صور من ذاكرة الهاتف</div>
+                                            </div>
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowImageSourceModal(false)}
+                                        className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer text-sm"
+                                    >
+                                        إلغاء
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex gap-4">
+                            <button type="submit" className="flex-1 bg-blue-600 text-white py-4 rounded-lg font-bold shadow-md hover:bg-blue-700 cursor-pointer disabled:opacity-50" disabled={uploading}>
+                                {uploading ? 'جاري الحفظ...' : (formData.id ? 'تعديل المنتج' : 'حفظ المنتج')}
+                            </button>
+                            <button type="button" onClick={handleToggleForm} className="px-6 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer">
+                                إلغاء
+                            </button>
+                        </div>
                     </form>
                 </div>
             )}
@@ -910,7 +1165,7 @@ export default function AdminStore() {
                         <div className="col-span-full text-center py-20 font-bold text-slate-400 dark:text-slate-500">لا توجد منتجات معروضة لهذا الفصل.</div>
                     ) : (
                         displayedProducts.map(p => (
-                            <div key={p.id} className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden flex flex-col">
+                            <div key={p.id} className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden flex flex-col relative">
                                 <div className="h-40 bg-slate-50 dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 p-2 flex items-center justify-center">
                                     {p.images?.[0] ? (
                                         <img src={p.images[0]} alt={p.name} className="max-w-full max-h-full object-contain rounded-lg" />

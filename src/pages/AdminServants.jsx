@@ -4,6 +4,7 @@ import { UserPlus, Search, Users, Shield, MapPin, Phone, Hash, Lock, Briefcase, 
 import { Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { exportServantsToExcel, exportToExcelGeneric } from '../utils/excelExport';
+import { matchArabicText } from '../utils/arabicSearch';
 
 const generateWeeks = (count = 12) => {
     const weeks = [];
@@ -728,12 +729,10 @@ export default function AdminServants() {
     };
 
     const filteredServants = servants.filter(s => {
-        const term = searchTerm.toLowerCase();
-        const matchesSearch = (
-            (s.name && s.name.toLowerCase().includes(term)) ||
-            (s.code && s.code.toLowerCase().includes(term))
-        );
-        if (!matchesSearch) return false;
+        if (searchTerm && searchTerm.trim()) {
+            const combinedText = [s.name, s.code, s.phone, ...(s.phones || [])].filter(Boolean).join(' ');
+            if (!matchArabicText(searchTerm, combinedText)) return false;
+        }
 
         if (selectedStage && s.assignedStage !== selectedStage) return false;
         if (selectedClass) {

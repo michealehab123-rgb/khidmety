@@ -643,7 +643,7 @@ export default function ServantProfile() {
                             >
                                 <Home size={48} strokeWidth={2.5} className="mx-auto text-blue-200 group-hover:-translate-y-1 transition-transform" />
                                 <h3 className="text-xl font-black">الافتقاد و المتابعه</h3>
-                                <p className="text-blue-100 text-sm font-bold">متابعة الافتقاد المنزلي والهاتفي و كشوف الغياب</p>
+                                <p className="text-blue-100 text-sm font-bold">متابعة الافتقاد المنزلي والهاتفي</p>
                             </button>
 
 
@@ -664,7 +664,7 @@ export default function ServantProfile() {
                                 >
                                     <Users size={48} strokeWidth={2.5} className="mx-auto text-blue-600 dark:text-blue-400 group-hover:-translate-y-1 transition-transform" />
                                     <h3 className="text-xl font-black">خدام مدارس الأحد في فصلي</h3>
-                                    <p className="text-slate-505 dark:text-slate-400 text-sm font-bold">قائمة بيانات التواصل مع خدام نفس فصلي</p>
+                                    <p className="text-slate-505 dark:text-slate-400 text-sm font-bold">قائمة بيانات التواصل مع خدام فصلي</p>
                                 </button>
                             )}
 

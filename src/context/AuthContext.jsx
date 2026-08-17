@@ -27,31 +27,55 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null); // General Admin (Firebase Auth)
   const [servant, setServant] = useState(undefined); // يبتدئ كـ undefined لتمييز حالة جاري التحميل عن "لا يوجد حساب"
 
+  const isAccountSavedInMultiList = (id) => {
+    if (!id) return false;
+    try {
+      const saved = localStorage.getItem('savedAccounts');
+      if (!saved) return false;
+      const list = JSON.parse(saved);
+      return Array.isArray(list) && list.some(acc => String(acc.id) === String(id) || String(acc.code || '') === String(id));
+    } catch {
+      return false;
+    }
+  };
+
   // Helper to handle session expiration on startup
   const getInitialStudentId = () => {
+    const sId = localStorage.getItem('studentId');
+    if (!sId) return null;
+
+    const activeType = localStorage.getItem('activeAccountType');
+    if (activeType && activeType !== 'student') return null;
+
     const isRemembered = localStorage.getItem('rememberMe') === 'true';
     const hasTempSession = sessionStorage.getItem('tempSessionActive') === 'true';
-    if (localStorage.getItem('rememberMe') === 'false' && !hasTempSession) {
+    const isSaved = isAccountSavedInMultiList(sId);
+
+    if (!isRemembered && !hasTempSession && !isSaved) {
       localStorage.removeItem('studentId');
       localStorage.removeItem('studentLastPasswordUpdate');
-      localStorage.removeItem('servantId');
-      localStorage.removeItem('rememberMe');
+      localStorage.removeItem('studentLastPasswordUpdateId');
       return null;
     }
-    return localStorage.getItem('studentId');
+    return sId;
   };
 
   const getInitialServantId = () => {
+    const svId = localStorage.getItem('servantId');
+    if (!svId) return null;
+
+    const activeType = localStorage.getItem('activeAccountType');
+    if (activeType && activeType === 'student') return null;
+
     const isRemembered = localStorage.getItem('rememberMe') === 'true';
     const hasTempSession = sessionStorage.getItem('tempSessionActive') === 'true';
-    if (localStorage.getItem('rememberMe') === 'false' && !hasTempSession) {
-      localStorage.removeItem('studentId');
-      localStorage.removeItem('studentLastPasswordUpdate');
+    const isSaved = isAccountSavedInMultiList(svId);
+
+    if (!isRemembered && !hasTempSession && !isSaved) {
       localStorage.removeItem('servantId');
-      localStorage.removeItem('rememberMe');
       return null;
     }
-    return localStorage.getItem('servantId');
+    return svId;
   };
 
   const [studentId, setStudentId] = useState(getInitialStudentId);
@@ -96,7 +120,8 @@ export function AuthProvider({ children }) {
           if (docSnap.exists()) {
             const data = docSnap.data();
             const roleNorm = normalizeArabic(data.role);
-            const isGeneralAdminUser = data.isGeneralAdmin === true || 
+            const isGeneralAdminUser = docSnap.id === 'SWyYts3l9Tc79IyzCOIFud8aOXn1' ||
+                                       data.isGeneralAdmin === true || 
                                        roleNorm === 'امين عام' || 
                                        roleNorm === 'خادم عام' || 
                                        roleNorm === 'عام' || 
@@ -157,7 +182,7 @@ export function AuthProvider({ children }) {
       } else {
         const storedServantId = localStorage.getItem('servantId');
         const storedStudentId = localStorage.getItem('studentId');
-        if (!storedServantId && !storedStudentId) {
+        if ((!storedServantId && !storedStudentId) || (!servantIdState && !studentId)) {
           setServant(null); // حل الـ undefined إلى null لإنهاء التحميل بأمان
           setLoading(false);
         }
@@ -165,13 +190,14 @@ export function AuthProvider({ children }) {
     });
 
     return () => unsubscribeAuth();
-  }, []);
+  }, [servantIdState, studentId]);
 
   // 2. Monitor Servant Session
   useEffect(() => {
     if (user) return; 
     if (!servantIdState) {
       setServant(null);
+      if (!studentId) setLoading(false);
       return;
     }
 
@@ -180,7 +206,8 @@ export function AuthProvider({ children }) {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const roleNorm = normalizeArabic(data.role);
-        const isGeneralAdminUser = data.isGeneralAdmin === true || 
+        const isGeneralAdminUser = docSnap.id === 'SWyYts3l9Tc79IyzCOIFud8aOXn1' ||
+                                   data.isGeneralAdmin === true || 
                                    roleNorm === 'امين عام' || 
                                    roleNorm === 'خادم عام' || 
                                    roleNorm === 'عام';
@@ -202,10 +229,11 @@ export function AuthProvider({ children }) {
     }, (error) => {
       console.error("Error fetching servant snapshot:", error);
       setServant(null);
+      setLoading(false);
     });
 
     return () => unsubscribeSnapshot();
-  }, [servantIdState, user]);
+  }, [servantIdState, user, studentId]);
 
   // 3. Monitor Student Session
   useEffect(() => {
@@ -213,6 +241,7 @@ export function AuthProvider({ children }) {
     if (!studentId) {
       setStudentId(null);
       setStudent(null);
+      if (!servantIdState) setLoading(false);
       return;
     }
 
@@ -223,16 +252,21 @@ export function AuthProvider({ children }) {
         setStudent({ id: docSnap.id, ...data });
         
         const storedLastUpdate = localStorage.getItem('studentLastPasswordUpdate');
+        const storedLastUpdateStudentId = localStorage.getItem('studentLastPasswordUpdateId');
         const currentLastUpdate = data.lastPasswordUpdate ? 
           (data.lastPasswordUpdate.toMillis ? data.lastPasswordUpdate.toMillis() : data.lastPasswordUpdate) 
           : 0;
 
-        if (storedLastUpdate && String(currentLastUpdate) !== String(storedLastUpdate)) {
+        if (storedLastUpdateStudentId === docSnap.id && storedLastUpdate && String(currentLastUpdate) !== String(storedLastUpdate)) {
           localStorage.removeItem('studentId');
           localStorage.removeItem('studentLastPasswordUpdate');
+          localStorage.removeItem('studentLastPasswordUpdateId');
           setStudentId(null);
           setStudent(null);
           window.location.href = '/login';
+        } else {
+          localStorage.setItem('studentLastPasswordUpdate', String(currentLastUpdate));
+          localStorage.setItem('studentLastPasswordUpdateId', docSnap.id);
         }
       } else {
         localStorage.removeItem('studentId');
@@ -242,11 +276,12 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }, (error) => {
       console.error("Error fetching student snapshot:", error);
+      setStudent(null);
       setLoading(false);
     });
 
     return () => unsubscribeSnapshot();
-  }, [studentId, user]);
+  }, [studentId, user, servantIdState]);
 
   // 4. Cascading Store Config Monitor
   useEffect(() => {
@@ -360,54 +395,66 @@ export function AuthProvider({ children }) {
 
   const performPurge = async () => {
     console.log('[Auth Cleanup] Initiating purification campaign...');
-    try {
-      // 1. Identify active session user IDs across all potential roles
-      const activeServantId = servant?.id || servantIdState || localStorage.getItem('servantId');
-      const activeStudentId = student?.id || studentId || localStorage.getItem('studentId');
-      const activeAuthUid = user?.uid || auth.currentUser?.uid;
+    
+    // 1. Identify active session user IDs across all potential roles
+    const activeServantId = servant?.id || servantIdState || localStorage.getItem('servantId');
+    const activeStudentId = student?.id || studentId || localStorage.getItem('studentId');
+    const activeAuthUid = user?.uid || auth.currentUser?.uid;
 
-      // 2. Clear FCM token from Firestore for these IDs
-      const messaging = getMessaging();
-      const registration = await navigator.serviceWorker.ready.catch(() => null);
-      const currentToken = await getToken(messaging, {
-        vapidKey: 'BDnkjGySbQVnoSQXpcJB5YafONwklqK5edNUoEuyTJqOdYz2PvQby40zDrT5303ukwxwa_sIBDUqLZ43LUE6L-g',
-        serviceWorkerRegistration: registration || undefined
-      }).catch(() => null);
+    // 2. Non-blocking FCM token cleanup safeguard (with 1s timeout to prevent hanging on serviceWorker.ready)
+    const purgeFCM = async () => {
+      try {
+        if (!('serviceWorker' in navigator)) return;
+        const messaging = getMessaging();
+        const swReadyPromise = Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('SW ready timeout')), 1000))
+        ]);
+        const registration = await swReadyPromise.catch(() => null);
+        const currentToken = await getToken(messaging, {
+          vapidKey: 'BDnkjGySbQVnoSQXpcJB5YafONwklqK5edNUoEuyTJqOdYz2PvQby40zDrT5303ukwxwa_sIBDUqLZ43LUE6L-g',
+          serviceWorkerRegistration: registration || undefined
+        }).catch(() => null);
 
-      if (currentToken) {
-        if (activeServantId) {
-          await updateDoc(doc(db, 'servants', activeServantId), {
-            fcmToken: deleteField(),
-            fcmTokens: deleteField()
-          }).catch(() => {});
+        if (currentToken) {
+          if (activeServantId) {
+            await updateDoc(doc(db, 'servants', activeServantId), {
+              fcmToken: deleteField(),
+              fcmTokens: deleteField()
+            }).catch(() => {});
+          }
+          if (activeStudentId) {
+            await updateDoc(doc(db, 'students', activeStudentId), {
+              fcmToken: deleteField(),
+              fcmTokens: deleteField()
+            }).catch(() => {});
+          }
+          if (activeAuthUid) {
+            await updateDoc(doc(db, 'servants', activeAuthUid), {
+              fcmToken: deleteField(),
+              fcmTokens: deleteField()
+            }).catch(() => {});
+            await updateDoc(doc(db, 'users', activeAuthUid), {
+              fcmToken: deleteField(),
+              fcmTokens: deleteField()
+            }).catch(() => {});
+          }
+          await deleteToken(messaging).catch(() => {});
+          console.log('[Auth Cleanup] Old FCM Token purged from Firestore and client.');
         }
-        if (activeStudentId) {
-          await updateDoc(doc(db, 'students', activeStudentId), {
-            fcmToken: deleteField(),
-            fcmTokens: deleteField()
-          }).catch(() => {});
-        }
-        if (activeAuthUid) {
-          await updateDoc(doc(db, 'servants', activeAuthUid), {
-            fcmToken: deleteField(),
-            fcmTokens: deleteField()
-          }).catch(() => {});
-          await updateDoc(doc(db, 'users', activeAuthUid), {
-            fcmToken: deleteField(),
-            fcmTokens: deleteField()
-          }).catch(() => {});
-        }
-        await deleteToken(messaging).catch(() => {});
-        console.log('[Auth Cleanup] Old FCM Token purged from Firestore and client.');
+      } catch (err) {
+        console.warn('[Auth Cleanup] FCM Token cleanup warning:', err);
       }
-    } catch (err) {
-      console.warn('[Auth Cleanup] FCM Token cleanup warning:', err);
-    }
+    };
+
+    // Run FCM purge in background without blocking login/logout flow
+    purgeFCM().catch(() => {});
 
     // 3. Clear localStorage and sessionStorage keys of previous accounts
     localStorage.removeItem('servantId');
     localStorage.removeItem('studentId');
     localStorage.removeItem('studentLastPasswordUpdate');
+    localStorage.removeItem('studentLastPasswordUpdateId');
     localStorage.removeItem('rememberMe');
     sessionStorage.removeItem('tempSessionActive');
 
@@ -438,33 +485,289 @@ export function AuthProvider({ children }) {
 
     const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
     await setPersistence(auth, persistenceType);
-    return signInWithEmailAndPassword(auth, email, password);
+    const res = await signInWithEmailAndPassword(auth, email, password);
+
+    if (res.user && rememberMe) {
+      saveAccountToMultiList({
+        id: res.user.uid,
+        type: 'admin',
+        name: res.user.displayName || email.split('@')[0] || 'أمين عام',
+        photoUrl: res.user.photoURL || null,
+        role: 'أمين عام',
+        email: email,
+        password: password
+      });
+    }
+
+    return res;
   };
 
-  const logout = async () => {
-    return await performPurge();
+  // Multi-Account Management
+  const getSavedAccountsFromStorage = () => {
+    try {
+      const saved = localStorage.getItem('savedAccounts');
+      if (!saved) return [];
+      const list = JSON.parse(saved);
+      return list.map(acc => {
+        if (String(acc.id) === 'SWyYts3l9Tc79IyzCOIFud8aOXn1' || (acc.email && String(acc.email).toLowerCase() === 'michealehab123@gmail.com')) {
+          return { ...acc, role: 'أمين عام', type: 'admin' };
+        }
+        return acc;
+      });
+    } catch {
+      return [];
+    }
+  };
+
+  const [savedAccountsState, setSavedAccountsState] = useState(getSavedAccountsFromStorage);
+
+  const saveAccountToMultiList = (accData) => {
+    if (!accData || !accData.id) return;
+    const currentList = getSavedAccountsFromStorage();
+    const existing = currentList.find(item => String(item.id) === String(accData.id));
+    const filtered = currentList.filter(item => String(item.id) !== String(accData.id));
+    const isGenAdminAcc = String(accData.id) === 'SWyYts3l9Tc79IyzCOIFud8aOXn1' || 
+                          (accData.email && String(accData.email).toLowerCase() === 'michealehab123@gmail.com') ||
+                          accData.type === 'admin';
+
+    const updatedAcc = {
+      id: String(accData.id),
+      type: isGenAdminAcc ? 'admin' : (accData.type || 'student'),
+      name: accData.name || 'مستخدم',
+      photoUrl: accData.photoUrl || null,
+      role: isGenAdminAcc ? 'أمين عام' : (accData.role || (accData.type === 'student' ? 'مخدوم' : 'خادم')),
+      code: accData.code ? String(accData.code) : null,
+      email: accData.email || existing?.email || null,
+      password: accData.password || existing?.password || null,
+      lastActive: Date.now(),
+      rememberMe: true
+    };
+    const newAccounts = [updatedAcc, ...filtered];
+    localStorage.setItem('savedAccounts', JSON.stringify(newAccounts));
+    setSavedAccountsState(newAccounts);
+  };
+
+  const removeSavedAccount = (accountId) => {
+    const currentList = getSavedAccountsFromStorage();
+    const filtered = currentList.filter(item => String(item.id) !== String(accountId));
+    localStorage.setItem('savedAccounts', JSON.stringify(filtered));
+    setSavedAccountsState(filtered);
+  };
+
+  // Auto-sync current remembered profile to savedAccounts
+  useEffect(() => {
+    const isRemembered = localStorage.getItem('rememberMe') === 'true';
+    if (!isRemembered) return;
+
+    if (student) {
+      saveAccountToMultiList({
+        id: student.id,
+        type: 'student',
+        name: student.name,
+        photoUrl: student.photoUrl,
+        role: 'مخدوم',
+        code: student.code || student.id,
+        password: student.password
+      });
+    } else if (servant) {
+      const roleNorm = normalizeArabic(servant.role);
+      const isGenAdminUser = servant.id === 'SWyYts3l9Tc79IyzCOIFud8aOXn1' ||
+                             servant.isGeneralAdmin === true ||
+                             roleNorm === 'امين عام' ||
+                             roleNorm === 'خادم عام' ||
+                             roleNorm === 'عام';
+      saveAccountToMultiList({
+        id: servant.id,
+        type: isGenAdminUser ? 'admin' : 'servant',
+        name: servant.name || servant.displayName || (isGenAdminUser ? 'أمين عام الخدمة' : 'خادم'),
+        photoUrl: servant.photoUrl || servant.photoURL || null,
+        role: isGenAdminUser ? 'أمين عام' : (servant.role || 'خادم'),
+        code: servant.code || servant.id,
+        password: servant.password
+      });
+    } else if (user) {
+      saveAccountToMultiList({
+        id: user.uid,
+        type: 'admin',
+        name: user.displayName || user.email?.split('@')[0] || 'أمين عام',
+        photoUrl: user.photoURL || null,
+        role: 'أمين عام',
+        email: user.email
+      });
+    }
+  }, [student, servant, user]);
+
+  const switchAccount = async (targetAccount) => {
+    if (!targetAccount || !targetAccount.id) return;
+    setLoading(true);
+
+    // تنظيف وحذف توكن الإشعارات من الحساب السابق أولاً قبل التبديل
+    await performPurge();
+
+    // Set persistence flag
+    localStorage.setItem('rememberMe', 'true');
+
+    if (targetAccount.type === 'student') {
+      localStorage.setItem('activeAccountType', 'student');
+      localStorage.removeItem('servantId');
+      localStorage.removeItem('studentLastPasswordUpdate');
+      localStorage.removeItem('studentLastPasswordUpdateId');
+      localStorage.setItem('studentId', targetAccount.id);
+      setServant(null);
+      setServantIdState(null);
+      setUser(null);
+      setStudentId(targetAccount.id);
+      await signOut(auth).catch(() => {});
+      window.location.href = '/student/dashboard';
+    } else if (targetAccount.type === 'servant') {
+      localStorage.setItem('activeAccountType', 'servant');
+      localStorage.removeItem('studentId');
+      localStorage.removeItem('studentLastPasswordUpdate');
+      localStorage.removeItem('studentLastPasswordUpdateId');
+      localStorage.setItem('servantId', targetAccount.id);
+      setStudent(null);
+      setStudentId(null);
+      setUser(null);
+      setServantIdState(targetAccount.id);
+      await signOut(auth).catch(() => {});
+      
+      const roleNorm = targetAccount.role ? normalizeArabic(targetAccount.role) : '';
+      if (roleNorm === 'امين عام' || roleNorm === 'خادم عام' || roleNorm === 'عام') {
+        window.location.href = '/admin';
+      } else {
+        window.location.href = '/servant/dashboard';
+      }
+    } else if (targetAccount.type === 'admin') {
+      localStorage.setItem('activeAccountType', 'admin');
+      localStorage.removeItem('studentId');
+      localStorage.removeItem('studentLastPasswordUpdate');
+      localStorage.removeItem('studentLastPasswordUpdateId');
+
+      if (targetAccount.id) {
+        localStorage.setItem('servantId', targetAccount.id);
+        setServantIdState(targetAccount.id);
+      }
+
+      setStudent(null);
+      setStudentId(null);
+
+      // If email and password are provided, execute Firebase Auth login:
+      if (targetAccount.email && targetAccount.password) {
+        try {
+          await login(targetAccount.email, targetAccount.password, true);
+          window.location.href = '/admin';
+          return;
+        } catch (e) {
+          console.error("Failed to auto sign in admin account with credentials", e);
+        }
+      }
+
+      // If Firebase Auth currentUser is already active for this admin email:
+      if (auth.currentUser && targetAccount.email && auth.currentUser.email?.toLowerCase() === targetAccount.email.toLowerCase()) {
+        setUser(auth.currentUser);
+        window.location.href = '/admin';
+        return;
+      }
+
+      window.location.href = '/admin';
+    }
+  };
+
+  const updateProfilePhoto = async (newPhotoUrl) => {
+    try {
+      if (studentId) {
+        await updateDoc(doc(db, 'students', studentId), { photoUrl: newPhotoUrl });
+        setStudent(prev => prev ? { ...prev, photoUrl: newPhotoUrl } : prev);
+      } else if (servantIdState) {
+        await updateDoc(doc(db, 'servants', servantIdState), { photoUrl: newPhotoUrl });
+        setServant(prev => prev ? { ...prev, photoUrl: newPhotoUrl } : prev);
+      } else if (user?.uid) {
+        await updateDoc(doc(db, 'servants', user.uid), { photoUrl: newPhotoUrl }).catch(() => {});
+        await updateDoc(doc(db, 'users', user.uid), { photoUrl: newPhotoUrl }).catch(() => {});
+        setServant(prev => prev ? { ...prev, photoUrl: newPhotoUrl } : prev);
+      }
+
+      // Also update photoUrl in savedAccounts list in storage
+      const activeId = studentId || servantIdState || user?.uid;
+      if (activeId) {
+        const currentList = getSavedAccountsFromStorage();
+        const updatedList = currentList.map(acc => {
+          if (String(acc.id) === String(activeId)) {
+            return { ...acc, photoUrl: newPhotoUrl };
+          }
+          return acc;
+        });
+        localStorage.setItem('savedAccounts', JSON.stringify(updatedList));
+        setSavedAccountsState(updatedList);
+      }
+    } catch (err) {
+      console.error("Error updating profile photo:", err);
+      throw err;
+    }
+  };
+
+  const logout = async (autoSwitchToNext = true) => {
+    const currentActiveId = studentId || servantIdState || user?.uid;
+    const isRemembered = localStorage.getItem('rememberMe') === 'true';
+
+    // Perform session purge
+    await performPurge();
+
+    // If current account was NOT remembered, remove it from savedAccounts
+    if (!isRemembered && currentActiveId) {
+      removeSavedAccount(currentActiveId);
+    }
+
+    if (autoSwitchToNext) {
+      // Check if there are remaining saved accounts
+      const remaining = getSavedAccountsFromStorage();
+      const otherAccounts = remaining.filter(a => String(a.id) !== String(currentActiveId));
+
+      if (otherAccounts.length > 0) {
+        // Auto-switch to the next saved account!
+        const nextAccount = otherAccounts[0];
+        await switchAccount(nextAccount);
+      } else {
+        // No other saved accounts, redirect to login page
+        window.location.href = '/login';
+      }
+    }
   };
 
   const setStudentSession = async (id, lastUpdate, rememberMe = false) => {
     // Clean up first to ensure fresh state
     localStorage.removeItem('servantId');
+    localStorage.setItem('activeAccountType', 'student');
     setServantIdState(null);
     setServant(null);
 
     localStorage.setItem('rememberMe', rememberMe ? 'true' : 'false');
     if (rememberMe) {
       localStorage.setItem('studentId', id);
-      if (lastUpdate) localStorage.setItem('studentLastPasswordUpdate', lastUpdate);
+      if (lastUpdate) {
+        localStorage.setItem('studentLastPasswordUpdate', String(lastUpdate));
+        localStorage.setItem('studentLastPasswordUpdateId', id);
+      }
       sessionStorage.removeItem('tempSessionActive');
     } else {
       localStorage.setItem('studentId', id);
-      if (lastUpdate) localStorage.setItem('studentLastPasswordUpdate', lastUpdate);
+      if (lastUpdate) {
+        localStorage.setItem('studentLastPasswordUpdate', String(lastUpdate));
+        localStorage.setItem('studentLastPasswordUpdateId', id);
+      }
       sessionStorage.setItem('tempSessionActive', 'true');
     }
     setStudentId(id);
   };
 
   const setServantSession = (id, rememberMe = false) => {
+    localStorage.removeItem('studentId');
+    localStorage.removeItem('studentLastPasswordUpdate');
+    localStorage.removeItem('studentLastPasswordUpdateId');
+    localStorage.setItem('activeAccountType', 'servant');
+    setStudentId(null);
+    setStudent(null);
+
     localStorage.setItem('rememberMe', rememberMe ? 'true' : 'false');
     if (rememberMe) {
       localStorage.setItem('servantId', id);
@@ -479,6 +782,7 @@ export function AuthProvider({ children }) {
   const loginServantByCode = async (servantData, rememberMe = false) => {
     const id = servantData.id;
     await performPurge();
+    localStorage.setItem('activeAccountType', 'servant');
 
     localStorage.setItem('rememberMe', rememberMe ? 'true' : 'false');
     if (rememberMe) {
@@ -489,6 +793,7 @@ export function AuthProvider({ children }) {
       sessionStorage.setItem('tempSessionActive', 'true');
     }
     setStudentId(null);
+    setStudent(null);
     setServant(servantData);          
     setServantIdState(id);            
   };
@@ -551,21 +856,70 @@ export function AuthProvider({ children }) {
   // حساب الرتب بشكل معزول وصارم تماماً
   const roleNorm = servant?.role ? normalizeArabic(servant.role) : '';
   
-  // الخادم العام هو فقط من يملك رتبة أمين عام أو خادم عام، أو لديه حقل isGeneralAdmin، أو مسجل بإيميل الأدمن العام
-  const isGeneralAdmin = !!user && (
+  // الخادم العام هو فقط من يملك رتبة أمين عام أو خادم عام، أو لديه حقل isGeneralAdmin، أو معرف SWyYts3l9Tc79IyzCOIFud8aOXn1، أو مسجل بإيميل الأدمن العام
+  const isGeneralAdmin = (!!servant && (
+    servant.id === 'SWyYts3l9Tc79IyzCOIFud8aOXn1' ||
+    servant.isGeneralAdmin === true ||
+    roleNorm === 'امين عام' ||
+    roleNorm === 'خادم عام' ||
+    roleNorm === 'عام'
+  )) || (!!user && (
+    user.uid === 'SWyYts3l9Tc79IyzCOIFud8aOXn1' ||
     !servant || 
     roleNorm === 'امين عام' || 
     roleNorm === 'خادم عام' || 
     roleNorm === 'عام' || 
     servant?.isGeneralAdmin === true ||
     (user.email && user.email.toLowerCase() === 'michealehab123@gmail.com')
-  );
+  ));
   
   // رتبة أمين المرحلة مستقلة بذاتها ومغلقة على نطاقها
   const isStageServant = !!servant && roleNorm.includes('مرحله') && !isGeneralAdmin;
   
   // رتبة أمين الفصل
   const isClassServant = !!servant && (roleNorm.includes('فصل') || roleNorm.includes('خادم')) && !isStageServant && !isGeneralAdmin;
+
+  const currentAccount = useMemo(() => {
+    if (student) {
+      return {
+        id: student.id,
+        type: 'student',
+        name: student.name || 'مخدوم',
+        photoUrl: student.photoUrl || null,
+        role: 'مخدوم',
+        code: student.code || student.id
+      };
+    }
+    if (servant) {
+      const roleNorm = normalizeArabic(servant.role);
+      const isGenAdminUser = servant.id === 'SWyYts3l9Tc79IyzCOIFud8aOXn1' ||
+                             servant.isGeneralAdmin === true ||
+                             roleNorm === 'امين عام' ||
+                             roleNorm === 'خادم عام' ||
+                             roleNorm === 'عام' ||
+                             (user?.email && user.email.toLowerCase() === 'michealehab123@gmail.com');
+      return {
+        id: servant.id,
+        type: isGenAdminUser ? 'admin' : 'servant',
+        name: servant.name || servant.displayName || (isGenAdminUser ? 'أمين عام الخدمة' : 'خادم'),
+        photoUrl: servant.photoUrl || servant.photoURL || null,
+        role: isGenAdminUser ? 'أمين عام' : (servant.role || 'خادم'),
+        code: servant.code || servant.id,
+        email: user?.email || servant.email || null
+      };
+    }
+    if (user) {
+      return {
+        id: user.uid,
+        type: 'admin',
+        name: user.displayName || user.email?.split('@')[0] || 'أمين عام',
+        photoUrl: user.photoURL || null,
+        role: 'أمين عام',
+        email: user.email
+      };
+    }
+    return null;
+  }, [student, servant, user]);
 
   const refreshPageLocks = async () => {
     try {
@@ -586,6 +940,11 @@ export function AuthProvider({ children }) {
     servant,
     student,
     studentId,
+    currentAccount,
+    savedAccounts: savedAccountsState,
+    switchAccount,
+    removeSavedAccount,
+    updateProfilePhoto,
     storeVisible,
     storeEnabled,
     storeSchedule,
@@ -596,6 +955,7 @@ export function AuthProvider({ children }) {
     isServant: isStageServant || isClassServant || (!!servantIdState && !user),
     isStudent: !!studentId && !user && !servantIdState && !servant,
     isAdmin: isGeneralAdmin, // التوافق مع الكود القديم دون تداخل صلاحيات
+    performPurge,
     login,
     logout,
     setStudentSession,

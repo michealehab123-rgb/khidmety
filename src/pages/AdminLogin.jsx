@@ -9,7 +9,7 @@ const AdminLogin = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const { login, logout, loginServantByCode, isGeneralAdmin, isStageServant, isClassServant, isServant, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -27,9 +27,12 @@ const AdminLogin = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Smart Auto-Redirect: only auto-redirect if session is explicitly remembered
+  // Smart Auto-Redirect: only auto-redirect if session is explicitly remembered & not adding new account
   useEffect(() => {
     if (authLoading) return;
+    const isAddingAccount = location.search.includes('addAccount=true');
+    if (isAddingAccount) return;
+
     const isRemembered = localStorage.getItem('rememberMe') === 'true';
     if (isRemembered) {
       if (isGeneralAdmin) {
@@ -38,7 +41,7 @@ const AdminLogin = () => {
         navigate('/servant', { replace: true });
       }
     }
-  }, [isGeneralAdmin, isStageServant, isClassServant, isServant, authLoading, navigate]);
+  }, [isGeneralAdmin, isStageServant, isClassServant, isServant, authLoading, navigate, location]);
 
   const from = location.state?.from?.pathname || "/admin";
 
@@ -53,8 +56,8 @@ const AdminLogin = () => {
     try {
       // ── PATH A: @church.com email → Firestore-direct servant login (no Firebase Auth) ──
       if (isServantLogin) {
-        // Clear any existing session without calling Firebase signOut
-        await logout();
+        // Clear any existing session without calling Firebase signOut or redirecting
+        await logout(false);
 
         // Extract code prefix (e.g. "4001@church.com" -> "4001")
         const servantCode = trimmedInput.split('@')[0];
@@ -103,7 +106,7 @@ const AdminLogin = () => {
       }
 
       // ── PATH B: Email address → standard Firebase Auth flow (General / Stage Admin) ──
-      await logout();
+      await logout(false);
       const userCredential = await login(trimmedInput, password, rememberMe);
       const uid = userCredential.user.uid;
 
@@ -219,6 +222,13 @@ const AdminLogin = () => {
             </label>
           </div>
 
+          {location.search.includes('addAccount=true') && (
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded-xl text-xs font-bold flex items-center gap-2">
+              <ShieldCheck size={16} className="text-blue-500 shrink-0" />
+              <span>إضافة حساب خادم/أمين جديد: يرجى تفعيل "تذكرني" للحفظ 📱</span>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 bg-rose-50 dark:bg-rose-955/25 text-rose-600 dark:text-rose-450 rounded-lg text-sm font-bold border border-rose-100 dark:border-rose-900/30">
               {error}
@@ -236,7 +246,7 @@ const AdminLogin = () => {
 
         <div className="mt-8 pt-6 border-t border-slate-150 dark:border-slate-800 text-center flex flex-col gap-3">
             <Link to="/servant/register" className="text-blue-600 dark:text-blue-450 font-black hover:underline text-base">خادم جديد؟ سجل هنا</Link>
-            <Link to="/login" className="text-slate-500 dark:text-slate-400 font-bold underline hover:text-blue-500 dark:hover:text-blue-300">دخول المخدومين</Link>
+            <Link to={location.search.includes('addAccount=true') ? "/login?addAccount=true" : "/login"} className="text-slate-500 dark:text-slate-400 font-bold underline hover:text-blue-500 dark:hover:text-blue-300">دخول المخدومين</Link>
         </div>
       </div>
     </div>

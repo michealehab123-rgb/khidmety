@@ -4,6 +4,7 @@ import { Printer, Filter, Calendar, CheckCircle, XCircle, Search, FileSpreadshee
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { exportAttendanceToExcel, exportToExcelGeneric } from '../utils/excelExport';
+import { matchArabicText } from '../utils/arabicSearch';
 
 const STAGE_CLASS_MAP = {
   'ابتدائي': [
@@ -71,6 +72,33 @@ const parseFilterValues = (filterStr) => {
     return values.size > 0 ? Array.from(values) : null;
 };
 
+const getFridaysInMonth = (yearVal, monthVal) => {
+    const year = parseInt(yearVal, 10);
+    const month = parseInt(monthVal, 10);
+    if (isNaN(year) || isNaN(month)) return [];
+
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const fridays = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(year, month - 1, d);
+        if (date.getDay() === 5) { // 5 is Friday
+            fridays.push(d);
+        }
+    }
+    return fridays;
+};
+
+const getClosestFridayInMonth = (yearVal, monthVal, targetDayVal) => {
+    const fridays = getFridaysInMonth(yearVal, monthVal);
+    if (fridays.length === 0) return 1;
+    const target = parseInt(targetDayVal, 10) || 1;
+    if (fridays.includes(target)) return target;
+
+    return fridays.reduce((prev, curr) => 
+        Math.abs(curr - target) < Math.abs(prev - target) ? curr : prev
+    );
+};
+
 export default function AdminAttendance() {
     const { user, servant, isGeneralAdmin, isStageServant, isServant, loading: authLoading, authorizedClasses } = useAuth();
     const navigate = useNavigate();
@@ -114,17 +142,20 @@ export default function AdminAttendance() {
 
     const myClassesKey = useMemo(() => myClasses.join(','), [myClasses]);
 
+    const initialFriday = String(getClosestFridayInMonth(todayDate.getFullYear(), todayDate.getMonth() + 1, todayDate.getDate()));
+    const initialStartFriday = String(getClosestFridayInMonth(oneMonthAgo.getFullYear(), oneMonthAgo.getMonth() + 1, oneMonthAgo.getDate()));
+
     const [filters, setFilters] = useState({
-        day: String(todayDate.getDate()),
+        day: initialFriday,
         month: String(todayDate.getMonth() + 1),
         year: String(todayDate.getFullYear()),
         status: 'attended',
         grade: '',
         searchMode: 'single',
-        startDay: String(oneMonthAgo.getDate()),
+        startDay: initialStartFriday,
         startMonth: String(oneMonthAgo.getMonth() + 1),
         startYear: String(oneMonthAgo.getFullYear()),
-        endDay: String(todayDate.getDate()),
+        endDay: initialFriday,
         endMonth: String(todayDate.getMonth() + 1),
         endYear: String(todayDate.getFullYear())
     });
@@ -259,16 +290,16 @@ export default function AdminAttendance() {
         }));
 
         setAppliedFilters({
-            day: String(todayDate.getDate()),
+            day: initialFriday,
             month: String(todayDate.getMonth() + 1),
             year: String(todayDate.getFullYear()),
             status: 'attended',
             grade: resolvedClass,
             searchMode: 'single',
-            startDay: String(oneMonthAgo.getDate()),
+            startDay: initialStartFriday,
             startMonth: String(oneMonthAgo.getMonth() + 1),
             startYear: String(oneMonthAgo.getFullYear()),
-            endDay: String(todayDate.getDate()),
+            endDay: initialFriday,
             endMonth: String(todayDate.getMonth() + 1),
             endYear: String(todayDate.getFullYear())
         });
@@ -587,13 +618,11 @@ export default function AdminAttendance() {
     const results = (() => {
         let filtered = rawResults;
 
-        // Search by name or code
+        // Search by name or code with fuzzy match & Arabic normalization
         if (resultSearchQuery.trim()) {
-            const q = normalizeArabic(resultSearchQuery.trim().toLowerCase());
             filtered = filtered.filter(st => {
-                const name = normalizeArabic((st.name || '').toLowerCase());
-                const code = (st.code || '').toLowerCase();
-                return name.includes(q) || code.includes(q);
+                const combined = [st.name, st.code, st.phone, ...(st.phones || [])].filter(Boolean).join(' ');
+                return matchArabicText(resultSearchQuery, combined);
             });
         }
 
@@ -790,20 +819,26 @@ export default function AdminAttendance() {
                     {/* Date Filters */}
                     {filters.searchMode === 'single' ? (
                         <div className="space-y-2 border-r border-slate-100 dark:border-slate-800 pr-4 lg:col-span-2">
-                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-2">التاريخ</label>
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-2">التاريخ (أيام الجمعة)</label>
                             <div className="flex gap-2">
                                 <select 
                                     className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                     value={filters.day}
                                     onChange={(e) => setFilters({ ...filters, day: e.target.value })}
                                 >
-                                    {days.map(d => <option key={d} value={d}>يوم {d}</option>)}
+                                    {getFridaysInMonth(filters.year, filters.month).map(d => (
+                                        <option key={d} value={d}>جمعة {d}</option>
+                                    ))}
                                 </select>
                                 
                                 <select 
                                     className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                     value={filters.month}
-                                    onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+                                    onChange={(e) => {
+                                        const newMonth = e.target.value;
+                                        const newDay = String(getClosestFridayInMonth(filters.year, newMonth, filters.day));
+                                        setFilters({ ...filters, month: newMonth, day: newDay });
+                                    }}
                                 >
                                     {months.map(m => <option key={m} value={m}>شهر {m}</option>)}
                                 </select>
@@ -811,7 +846,11 @@ export default function AdminAttendance() {
                                 <select 
                                     className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                     value={filters.year}
-                                    onChange={(e) => setFilters({ ...filters, year: e.target.value })}
+                                    onChange={(e) => {
+                                        const newYear = e.target.value;
+                                        const newDay = String(getClosestFridayInMonth(newYear, filters.month, filters.day));
+                                        setFilters({ ...filters, year: newYear, day: newDay });
+                                    }}
                                 >
                                     {years.map(y => <option key={y} value={y}>سنة {y}</option>)}
                                 </select>
@@ -820,52 +859,72 @@ export default function AdminAttendance() {
                     ) : (
                         <>
                             <div className="space-y-2 border-r border-slate-100 dark:border-slate-800 pr-4 lg:col-span-2">
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-2">من تاريخ</label>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-2">من تاريخ (الجمعة)</label>
                                 <div className="flex gap-2">
                                     <select 
                                         className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                         value={filters.startDay}
                                         onChange={(e) => setFilters({ ...filters, startDay: e.target.value })}
                                     >
-                                        {days.map(d => <option key={d} value={d}>يوم {d}</option>)}
+                                        {getFridaysInMonth(filters.startYear, filters.startMonth).map(d => (
+                                            <option key={d} value={d}>جمعة {d}</option>
+                                        ))}
                                     </select>
                                     <select 
                                         className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                         value={filters.startMonth}
-                                        onChange={(e) => setFilters({ ...filters, startMonth: e.target.value })}
+                                        onChange={(e) => {
+                                            const newMonth = e.target.value;
+                                            const newDay = String(getClosestFridayInMonth(filters.startYear, newMonth, filters.startDay));
+                                            setFilters({ ...filters, startMonth: newMonth, startDay: newDay });
+                                        }}
                                     >
                                         {months.map(m => <option key={m} value={m}>شهر {m}</option>)}
                                     </select>
                                     <select 
                                         className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                         value={filters.startYear}
-                                        onChange={(e) => setFilters({ ...filters, startYear: e.target.value })}
+                                        onChange={(e) => {
+                                            const newYear = e.target.value;
+                                            const newDay = String(getClosestFridayInMonth(newYear, filters.startMonth, filters.startDay));
+                                            setFilters({ ...filters, startYear: newYear, startDay: newDay });
+                                        }}
                                     >
                                         {years.map(y => <option key={y} value={y}>سنة {y}</option>)}
                                     </select>
                                 </div>
                             </div>
                             <div className="space-y-2 border-r border-slate-100 dark:border-slate-800 pr-4 lg:col-span-2">
-                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-2">إلى تاريخ</label>
+                                <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-2">إلى تاريخ (الجمعة)</label>
                                 <div className="flex gap-2">
                                     <select 
                                         className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                         value={filters.endDay}
                                         onChange={(e) => setFilters({ ...filters, endDay: e.target.value })}
                                     >
-                                        {days.map(d => <option key={d} value={d}>يوم {d}</option>)}
+                                        {getFridaysInMonth(filters.endYear, filters.endMonth).map(d => (
+                                            <option key={d} value={d}>جمعة {d}</option>
+                                        ))}
                                     </select>
                                     <select 
                                         className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                         value={filters.endMonth}
-                                        onChange={(e) => setFilters({ ...filters, endMonth: e.target.value })}
+                                        onChange={(e) => {
+                                            const newMonth = e.target.value;
+                                            const newDay = String(getClosestFridayInMonth(filters.endYear, newMonth, filters.endDay));
+                                            setFilters({ ...filters, endMonth: newMonth, endDay: newDay });
+                                        }}
                                     >
                                         {months.map(m => <option key={m} value={m}>شهر {m}</option>)}
                                     </select>
                                     <select 
                                         className="w-1/3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg font-bold text-center text-slate-700 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                         value={filters.endYear}
-                                        onChange={(e) => setFilters({ ...filters, endYear: e.target.value })}
+                                        onChange={(e) => {
+                                            const newYear = e.target.value;
+                                            const newDay = String(getClosestFridayInMonth(newYear, filters.endMonth, filters.endDay));
+                                            setFilters({ ...filters, endYear: newYear, endDay: newDay });
+                                        }}
                                     >
                                         {years.map(y => <option key={y} value={y}>سنة {y}</option>)}
                                     </select>

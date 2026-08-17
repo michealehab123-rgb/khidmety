@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useAppUpdate } from '../context/AppUpdateContext';
 import { 
   db, 
   collection, 
@@ -12,11 +13,14 @@ import {
   Bell, 
   Loader2, 
   Calendar, 
-  User 
+  User,
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 
 export default function NotificationModal({ isOpen, onClose }) {
   const { servant, student, isGeneralAdmin, isServant, isStudent } = useAuth();
+  const { hasUpdate, isUpdating, triggerUpdate } = useAppUpdate();
   
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
@@ -158,6 +162,8 @@ export default function NotificationModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
+  const totalCount = notifications.length + (hasUpdate ? 1 : 0);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white dark:bg-[#1e293b] w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-in zoom-in-95 duration-200 text-right" dir="rtl">
@@ -188,7 +194,7 @@ export default function NotificationModal({ isOpen, onClose }) {
         <div className="p-6 overflow-y-auto flex-1 bg-slate-50 dark:bg-[#0f172a]/20">
           <div className="space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200/60 dark:border-slate-800">
-              <h4 className="font-black text-base text-slate-700 dark:text-slate-300">الرسائل الواردة ({notifications.length})</h4>
+              <h4 className="font-black text-base text-slate-700 dark:text-slate-300">الرسائل الواردة ({totalCount})</h4>
             </div>
 
             {loading ? (
@@ -196,13 +202,51 @@ export default function NotificationModal({ isOpen, onClose }) {
                 <Loader2 className="animate-spin text-[#271e48] dark:text-teal-400" size={36} />
                 <span className="text-sm font-bold">جاري تحميل إشعاراتك...</span>
               </div>
-            ) : notifications.length === 0 ? (
+            ) : totalCount === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400 dark:text-slate-500">
                 <Bell size={54} className="opacity-30" />
                 <span className="text-base font-bold">صندوق الوارد فارغ. لا توجد إشعارات حالياً!</span>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-4">
+                {/* 🚀 System Update Notification Card (Sticky at top when available) */}
+                {hasUpdate && (
+                  <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-xl flex flex-col gap-3 relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="flex items-center justify-between gap-2 border-b border-white/20 pb-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="text-amber-300 animate-pulse" size={20} />
+                        <h5 className="font-black text-lg text-white leading-tight">🚀 تحديث جديد للموقع متوفر الآن!</h5>
+                      </div>
+                      <span className="text-xs bg-amber-400 text-slate-900 px-2.5 py-1 rounded-full font-black">
+                        تحديث هام
+                      </span>
+                    </div>
+
+                    <p className="text-sm text-blue-50 leading-relaxed font-semibold">
+                      تم نشر تحسينات وإصلاحات جديدة على النظام. يُرجى الضغط على الزر أدناه لتحديث التطبيق فوراً والحصول على أحدث نسخة بدون الحاجة لمسح سجل المتصفح.
+                    </p>
+
+                    <button
+                      onClick={triggerUpdate}
+                      disabled={isUpdating}
+                      className="w-full mt-1 py-3 px-5 bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-white font-black text-sm rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer border-none disabled:opacity-75"
+                    >
+                      {isUpdating ? (
+                        <>
+                          <Loader2 className="animate-spin" size={20} />
+                          <span>جاري تفريغ الكاش وتحديث التطبيق...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={20} className="animate-spin-slow" />
+                          <span>تحديث التطبيق الآن 🔄</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* Normal Notifications */}
                 {notifications.map((notif) => (
                   <div 
                     key={notif.id}
@@ -248,3 +292,4 @@ export default function NotificationModal({ isOpen, onClose }) {
     </div>
   );
 }
+

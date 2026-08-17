@@ -62,13 +62,33 @@ const isServantActiveInWeek = (s, fridayStr) => {
     return createdTime <= friday.getTime();
 };
 
+const getFridayKeyForDate = (dateObj) => {
+    try {
+        if (!dateObj) return '';
+        const d = new Date(dateObj);
+        if (isNaN(d.getTime())) return '';
+        const daysToFriday = (5 - d.getDay() + 7) % 7;
+        const friday = new Date(d);
+        friday.setDate(d.getDate() + daysToFriday);
+        const y = friday.getFullYear();
+        const m = String(friday.getMonth() + 1).padStart(2, '0');
+        const day = String(friday.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    } catch (e) {
+        return '';
+    }
+};
+
 const generateWeeks = () => {
     const weeks = [];
     const today = new Date();
     
-    const currentFriday = new Date();
-    const daysToFriday = (5 - today.getDay() + 7) % 7;
-    currentFriday.setDate(today.getDate() + daysToFriday);
+    const currentFridayKey = getFridayKeyForDate(today);
+    const parts = currentFridayKey ? currentFridayKey.split('-') : [];
+    const currentFriday = parts.length === 3 
+        ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])) 
+        : new Date();
+    currentFriday.setHours(23, 59, 59, 999);
     
     const minFriday = new Date(2026, 5, 19); // Friday June 19, 2026
     minFriday.setHours(0, 0, 0, 0);
@@ -76,7 +96,7 @@ const generateWeeks = () => {
     for (let i = 0; i < 52; i++) {
         const friday = new Date(currentFriday);
         friday.setDate(currentFriday.getDate() - (i * 7));
-        friday.setHours(0, 0, 0, 0);
+        friday.setHours(23, 59, 59, 999);
         
         if (friday.getTime() < minFriday.getTime()) {
             break;
@@ -84,6 +104,7 @@ const generateWeeks = () => {
         
         const saturday = new Date(friday);
         saturday.setDate(friday.getDate() - 6);
+        saturday.setHours(0, 0, 0, 0);
         
         const y = friday.getFullYear();
         const m = String(friday.getMonth() + 1).padStart(2, '0');
@@ -91,7 +112,7 @@ const generateWeeks = () => {
         const fridayStr = `${y}-${m}-${dStr}`;
         
         const options = { month: 'short', day: 'numeric' };
-        const label = `الجمعة ${friday.toLocaleDateString('ar-EG', options)} (من السبت ${saturday.toLocaleDateString('ar-EG', options)} إلى الجمعة ${friday.toLocaleDateString('ar-EG', options)})`;
+        const label = `أسبوع الجمعة ${friday.toLocaleDateString('ar-EG', options)} (من السبت ${saturday.toLocaleDateString('ar-EG', options)} إلى الجمعة ${friday.toLocaleDateString('ar-EG', options)})`;
         
         weeks.push({
             key: fridayStr,
@@ -169,10 +190,16 @@ export default function AdminServantProfile() {
         return unsub;
     }, []);
 
-    // Set default selected week key
+    // Set default selected week key (default to current week's Friday key)
     useEffect(() => {
         if (weeksList.length > 0 && !selectedWeekKey) {
-            setSelectedWeekKey(weeksList[0].key);
+            const currentFridayKey = getFridayKeyForDate(new Date());
+            const matched = weeksList.find(w => w.key === currentFridayKey);
+            if (matched) {
+                setSelectedWeekKey(matched.key);
+            } else {
+                setSelectedWeekKey(weeksList[0].key);
+            }
         }
     }, [weeksList, selectedWeekKey]);
 
@@ -211,10 +238,60 @@ export default function AdminServantProfile() {
     }, [activeFridays, servant]);
 
     const visitationActivity = useMemo(() => {
-        if (!servant) return { homeVisits: [], phoneVisits: [] };
+        if (!servant || !servant.id || students.length === 0) {
+            return { homeVisits: [], phoneVisits: [] };
+        }
 
         const homeVisits = [];
         const phoneVisits = [];
+
+        const isMatchServant = (record) => {
+            if (!record) return false;
+            
+            const servantIdStr = String(servant.id || '').trim();
+            const servantCode = String(servant.code || servant.servantCode || servant.id || '').trim();
+            const servantName = (servant.nameStr || servant.name || '').trim();
+            const normServantName = normalizeArabic(servantName);
+            const servantUid = String(servant.uid || '').trim();
+
+            const recordServantId = String(record.servantId || '').trim();
+            const recordServantName = String(record.servantName || '').trim();
+
+            // 1. Direct ID / Code / UID matching
+            if (recordServantId) {
+                if (servantIdStr && recordServantId === servantIdStr) return true;
+                if (servantCode && recordServantId === servantCode) return true;
+                if (servantUid && recordServantId === servantUid) return true;
+            }
+
+            // 2. Array of IDs (for home visitation partners)
+            if (Array.isArray(record.visitedByIds) && record.visitedByIds.some(vId => {
+                const sVId = String(vId || '').trim();
+                return (servantIdStr && sVId === servantIdStr) || (servantCode && sVId === servantCode) || (servantUid && sVId === servantUid);
+            })) {
+                return true;
+            }
+
+            // 3. Array of servant names (visitedBy) with Arabic Normalization
+            if (Array.isArray(record.visitedBy) && record.visitedBy.some(nameStr => {
+                if (!nameStr) return false;
+                const normNameStr = normalizeArabic(nameStr);
+                if (normServantName && normNameStr.includes(normServantName)) return true;
+                if (servantCode && nameStr.includes(servantCode)) return true;
+                return false;
+            })) {
+                return true;
+            }
+
+            // 4. Servant name string (servantName) - handle "Name - Code" format with Arabic Normalization
+            if (recordServantName) {
+                const normRecordName = normalizeArabic(recordServantName);
+                if (normServantName && normRecordName.includes(normServantName)) return true;
+                if (servantCode && recordServantName.includes(servantCode)) return true;
+            }
+
+            return false;
+        };
 
         if (reportType === 'weekly') {
             const selectedWeek = weeksList.find(w => w.key === selectedWeekKey);
@@ -227,21 +304,30 @@ export default function AdminServantProfile() {
 
             students.forEach(st => {
                 if (st.homeVisitations) {
-                    Object.entries(st.homeVisitations).forEach(([monthKey, record]) => {
-                        if (record.status === 'visited' || record.status === 'late_attended') {
-                            const isByServant = record.servantId === servant.id || 
-                                (Array.isArray(record.visitedByIds) && record.visitedByIds.includes(servant.id)) ||
-                                (Array.isArray(record.visitedBy) && record.visitedBy.includes(servant.name)) ||
-                                record.servantName === servant.name;
-                            if (isByServant && record.timestamp) {
-                                const t = new Date(record.timestamp).getTime();
-                                if (t >= startOfWeek.getTime() && t <= endOfWeek.getTime()) {
+                    Object.entries(st.homeVisitations).forEach(([key, record]) => {
+                        if (record && (record.status === 'visited' || record.status === 'late_attended')) {
+                            if (isMatchServant(record)) {
+                                let isMatchWeek = false;
+                                if (record.timestamp) {
+                                    const t = new Date(record.timestamp).getTime();
+                                    if (!isNaN(t) && t >= startOfWeek.getTime() && t <= endOfWeek.getTime()) {
+                                        isMatchWeek = true;
+                                    }
+                                }
+                                if (!isMatchWeek) {
+                                    const fKey = getFridayKeyForDate(record.timestamp);
+                                    if (key === selectedWeekKey || (fKey && fKey === selectedWeekKey)) {
+                                        isMatchWeek = true;
+                                    }
+                                }
+
+                                if (isMatchWeek) {
                                     homeVisits.push({
                                         studentId: st.id,
                                         studentName: st.name,
                                         className: st.assignedClass || st.grade || '—',
                                         type: 'home',
-                                        date: new Date(record.timestamp).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }),
+                                        date: record.timestamp ? new Date(record.timestamp).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
                                         status: record.status === 'visited' ? 'افتُقد' : 'افتقاد متأخر',
                                         note: record.note || ''
                                     });
@@ -251,69 +337,94 @@ export default function AdminServantProfile() {
                     });
                 }
 
-                if (st.phoneVisitations?.[selectedWeekKey]) {
-                    const record = st.phoneVisitations[selectedWeekKey];
-                    if (record.status === 'called' || record.status === 'late_attended') {
-                        const isByServant = record.servantId === servant.id || record.servantName === servant.name;
-                        if (isByServant) {
-                            phoneVisits.push({
-                                studentId: st.id,
-                                studentName: st.name,
-                                className: st.assignedClass || st.grade || '—',
-                                type: 'phone',
-                                date: record.timestamp ? new Date(record.timestamp).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
-                                status: record.status === 'called' ? 'مكالمة تليفونية' : 'مكالمة متأخرة',
-                                note: record.note || ''
-                            });
+                if (st.phoneVisitations) {
+                    Object.entries(st.phoneVisitations).forEach(([key, record]) => {
+                        if (record && (record.status === 'called' || record.status === 'late_attended')) {
+                            if (isMatchServant(record)) {
+                                let isMatchWeek = (key === selectedWeekKey);
+                                if (!isMatchWeek && record.timestamp) {
+                                    const t = new Date(record.timestamp).getTime();
+                                    if (!isNaN(t) && t >= startOfWeek.getTime() && t <= endOfWeek.getTime()) {
+                                        isMatchWeek = true;
+                                    }
+                                }
+
+                                if (isMatchWeek) {
+                                    phoneVisits.push({
+                                        studentId: st.id,
+                                        studentName: st.name,
+                                        className: st.assignedClass || st.grade || '—',
+                                        type: 'phone',
+                                        date: record.timestamp ? new Date(record.timestamp).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
+                                        status: record.status === 'called' ? 'مكالمة تليفونية' : 'مكالمة متأخرة',
+                                        note: record.note || ''
+                                    });
+                                }
+                            }
                         }
-                    }
+                    });
                 }
             });
         } else {
-            const monthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+            const monthPrefix = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 
             students.forEach(st => {
-                if (st.homeVisitations?.[monthKey]) {
-                    const record = st.homeVisitations[monthKey];
-                    if (record.status === 'visited' || record.status === 'late_attended') {
-                        const isByServant = record.servantId === servant.id || 
-                            (Array.isArray(record.visitedByIds) && record.visitedByIds.includes(servant.id)) ||
-                            (Array.isArray(record.visitedBy) && record.visitedBy.includes(servant.name)) ||
-                            record.servantName === servant.name;
-                        if (isByServant) {
-                            homeVisits.push({
-                                studentId: st.id,
-                                studentName: st.name,
-                                className: st.assignedClass || st.grade || '—',
-                                type: 'home',
-                                date: record.timestamp ? new Date(record.timestamp).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
-                                status: record.status === 'visited' ? 'افتُقد' : 'افتقاد متأخر',
-                                note: record.note || ''
-                            });
-                        }
-                    }
-                }
+                if (st.homeVisitations) {
+                    Object.entries(st.homeVisitations).forEach(([key, record]) => {
+                        if (record && (record.status === 'visited' || record.status === 'late_attended')) {
+                            if (isMatchServant(record)) {
+                                let isMatchMonth = key === monthPrefix || key.startsWith(monthPrefix);
+                                if (!isMatchMonth && record.timestamp) {
+                                    const d = new Date(record.timestamp);
+                                    if (!isNaN(d.getTime())) {
+                                        isMatchMonth = d.getFullYear() === selectedYear && (d.getMonth() + 1) === selectedMonth;
+                                    }
+                                }
 
-                currentFridaysOfMonth.forEach(fKey => {
-                    if (st.phoneVisitations?.[fKey]) {
-                        const record = st.phoneVisitations[fKey];
-                        if (record.status === 'called' || record.status === 'late_attended') {
-                            const isByServant = record.servantId === servant.id || record.servantName === servant.name;
-                            if (isByServant) {
-                                phoneVisits.push({
-                                    studentId: st.id,
-                                    studentName: st.name,
-                                    className: st.assignedClass || st.grade || '—',
-                                    type: 'phone',
-                                    date: record.timestamp ? new Date(record.timestamp).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
-                                    status: record.status === 'called' ? 'مكالمة تليفونية' : 'مكالمة متأخرة',
-                                    note: record.note || '',
-                                    weekKey: fKey
-                                });
+                                if (isMatchMonth) {
+                                    homeVisits.push({
+                                        studentId: st.id,
+                                        studentName: st.name,
+                                        className: st.assignedClass || st.grade || '—',
+                                        type: 'home',
+                                        date: record.timestamp ? new Date(record.timestamp).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
+                                        status: record.status === 'visited' ? 'افتُقد' : 'افتقاد متأخر',
+                                        note: record.note || ''
+                                    });
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }
+
+                if (st.phoneVisitations) {
+                    Object.entries(st.phoneVisitations).forEach(([key, record]) => {
+                        if (record && (record.status === 'called' || record.status === 'late_attended')) {
+                            if (isMatchServant(record)) {
+                                let isMatchMonth = key.startsWith(monthPrefix);
+                                if (!isMatchMonth && record.timestamp) {
+                                    const d = new Date(record.timestamp);
+                                    if (!isNaN(d.getTime())) {
+                                        isMatchMonth = d.getFullYear() === selectedYear && (d.getMonth() + 1) === selectedMonth;
+                                    }
+                                }
+
+                                if (isMatchMonth) {
+                                    phoneVisits.push({
+                                        studentId: st.id,
+                                        studentName: st.name,
+                                        className: st.assignedClass || st.grade || '—',
+                                        type: 'phone',
+                                        date: record.timestamp ? new Date(record.timestamp).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }) : '—',
+                                        status: record.status === 'called' ? 'مكالمة تليفونية' : 'مكالمة متأخرة',
+                                        note: record.note || '',
+                                        weekKey: key
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
             });
         }
 

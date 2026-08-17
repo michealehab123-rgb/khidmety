@@ -42,6 +42,19 @@ if (serviceAccount) {
 }
 
 const db = getFirestore();
+const messaging = getMessaging();
+
+const normalizeArabic = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/[\u064B-\u0652]/g, '')
+    .replace(/[أإآا]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/ـ/g, '')
+    .toLowerCase()
+    .trim();
+};
 
 // Helper لتنظيف العمليات القديمة التي مر عليها 24 ساعة (Soft Delete Cleanup)
 const cleanupSoftDeletes = async (log) => {
@@ -362,7 +375,6 @@ async function runScheduledNotificationsAndReports(log) {
       log('[Scheduled Cron] No pending one-off scheduled notifications in database.');
     } else {
       log(`[Scheduled Cron] Found ${snapshot.size} pending notification(s) in database. Checking schedule times...`);
-      const messaging = getMessaging();
 
       for (const doc of snapshot.docs) {
       const data = doc.data();
@@ -1323,6 +1335,67 @@ const compileAdminSummaryBackend = async (db, filters, nowInEgypt) => {
     }
 };
 
+let currentKeyIndex = 0;
+const callGeminiWithRotation = async (promptText, systemInstruction = "") => {
+  const keys = [
+    process.env.GEMINI_API_KEY_1,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3
+  ].filter(Boolean);
+
+  if (keys.length === 0) {
+    throw new Error("No Gemini API keys configured");
+  }
+
+  let lastError = null;
+  for (let attempt = 0; attempt < keys.length; attempt++) {
+    const keyIndex = (currentKeyIndex + attempt) % keys.length;
+    const apiKey = keys[keyIndex];
+    
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent`;
+      const payload = {
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      };
+
+      if (systemInstruction) {
+        payload.systemInstruction = {
+          parts: [{ text: systemInstruction }]
+        };
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errMsg = errorData.error?.message || response.statusText;
+        throw new Error(`API Error ${response.status}: ${errMsg}`);
+      }
+
+      const data = await response.json();
+      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      currentKeyIndex = (keyIndex + 1) % keys.length;
+      return textResponse;
+    } catch (err) {
+      console.error(`[Gemini API Error] Key index ${keyIndex} failed:`, err.message);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("All Gemini API keys failed");
+};
+
 const sendWhatsAppTextMessage = async (token, phoneId, to, text) => {
     try {
         const response = await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
@@ -1423,6 +1496,81 @@ app.get('/api/webhook', (req, res) => {
   }
 });
 
+app.get('/api/test-debug', async (req, res) => {
+  const status = {
+    firebase: 'untested',
+    whatsapp: 'untested',
+    gemini: 'untested',
+    env: {
+      has_whatsapp_token: !!process.env.WHATSAPP_ACCESS_TOKEN,
+      has_whatsapp_phone_id: !!process.env.WHATSAPP_PHONE_NUMBER_ID,
+      has_firebase_service_account: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+      has_gemini_key_1: !!process.env.GEMINI_API_KEY_1
+    }
+  };
+
+  // Test Firebase
+  try {
+    const snap = await db.collection('students').limit(1).get();
+    status.firebase = `success (found ${snap.size} students)`;
+  } catch (err) {
+    status.firebase = `error: ${err.message}`;
+  }
+
+  // Test Gemini
+  try {
+    const geminiReply = await callGeminiWithRotation("Hello, respond only with the word 'OK'", "Test system instruction");
+    status.gemini = `success (reply: ${geminiReply})`;
+  } catch (err) {
+    status.gemini = `error: ${err.message}`;
+  }
+
+  // List available models
+  try {
+    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models`;
+    const listRes = await fetch(listUrl, {
+      method: 'GET',
+      headers: {
+        'x-goog-api-key': process.env.GEMINI_API_KEY_1
+      }
+    });
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      status.available_models = listData.models?.map(m => m.name) || [];
+    } else {
+      const errData = await listRes.json().catch(() => ({}));
+      status.available_models = `error ${listRes.status}: ${errData.error?.message || listRes.statusText}`;
+    }
+  } catch (err) {
+    status.available_models = `exception: ${err.message}`;
+  }
+
+  // Test WhatsApp Send (to a dummy number or the user's tester number if passed in query)
+  const testPhone = req.query.phone;
+  if (testPhone) {
+    try {
+      const success = await sendWhatsAppTextMessage(
+        process.env.WHATSAPP_ACCESS_TOKEN,
+        process.env.WHATSAPP_PHONE_NUMBER_ID,
+        testPhone,
+        "سلام ونعمة! هذا اختبار تفاعلي مباشر لسيرفر خدمتي السحابي. ⛪✨"
+      );
+      status.whatsapp = success ? 'success' : 'failed (check server logs for details)';
+    } catch (err) {
+      status.whatsapp = `error: ${err.message}`;
+    }
+  } else {
+    status.whatsapp = 'skipped (pass ?phone=2010... in URL to test)';
+  }
+
+  res.json(status);
+});
+
+// Global In-Memory Message Aggregator Buffer (Debounce 6.0s per sender)
+const userMessageBuffers = new Map();
+const processedMessageIds = new Set();
+const MESSAGE_BUFFER_DELAY_MS = 6000;
+
 // Webhook Listener (POST /api/webhook)
 app.post('/api/webhook', async (req, res) => {
   // Return a 200 OK immediately to Meta to acknowledge receipt and prevent retries
@@ -1490,8 +1638,22 @@ app.post('/api/webhook', async (req, res) => {
       return;
     }
 
-    const senderPhone = message.from; 
+    const messageId = message.id;
+    if (messageId) {
+      if (processedMessageIds.has(messageId)) {
+        console.log(`[Webhook Bot ⚠️] Ignoring duplicate webhook delivery for message ID: ${messageId}`);
+        return;
+      }
+      processedMessageIds.add(messageId);
+      setTimeout(() => processedMessageIds.delete(messageId), 5 * 60 * 1000);
+    }
+
+    const rawSenderPhone = message.from; 
+    const cleanSenderPhone = (rawSenderPhone || '').replace(/\D/g, '');
+    const bufferKey = cleanSenderPhone || rawSenderPhone;
     const messageText = (message.text?.body || '').trim();
+
+    if (!messageText) return;
     
     // Check if the webhook bot is enabled in settings
     const settingsDoc = await db.collection('settings').doc('notifications').get();
@@ -1503,55 +1665,126 @@ app.post('/api/webhook', async (req, res) => {
       return;
     }
 
-    console.log(`[Webhook Bot 📩] Received message from ${senderPhone}: "${messageText}"`);
+    // Initialize buffer for sender if not present
+    if (!userMessageBuffers.has(bufferKey)) {
+      userMessageBuffers.set(bufferKey, {
+        rawSenderPhone: rawSenderPhone,
+        messages: [],
+        timer: null
+      });
+    }
 
+    const userBuf = userMessageBuffers.get(bufferKey);
+    userBuf.messages.push(messageText);
+
+    if (userBuf.timer) {
+      clearTimeout(userBuf.timer);
+      console.log(`[Webhook Bot 🔄] Resetting 6s buffer timer for ${bufferKey} (Total chunks: ${userBuf.messages.length})`);
+    }
+
+    userBuf.timer = setTimeout(async () => {
+      const allChunks = [...userBuf.messages];
+      const targetPhone = userBuf.rawSenderPhone || rawSenderPhone;
+      userMessageBuffers.delete(bufferKey);
+
+      const combinedText = allChunks.join(' \n').trim();
+      console.log(`[Webhook Bot 📩] Processing aggregated message from ${targetPhone} (${allChunks.length} chunks combined):\n"${combinedText}"`);
+
+      try {
+        await processUserMessage(targetPhone, combinedText, value, accessToken, phoneNumberId);
+      } catch (err) {
+        console.error('[Webhook Aggregated Error]:', err);
+      }
+    }, MESSAGE_BUFFER_DELAY_MS);
+
+  } catch (err) {
+    console.error('[Webhook Listener Error]:', err);
+  }
+});
+
+// Main Message Processor for Aggregated User Messages
+async function processUserMessage(senderPhone, messageText, value, accessToken, phoneNumberId) {
+  try {
     // Scan database to identify the sender
     let cleanSenderPhone = senderPhone.replace(/\D/g, '');
+
+    // Check if sender phone is in blockedNumbers collection (Blacklist)
+    try {
+      const blockedSnap = await db.collection('blockedNumbers').get();
+      if (!blockedSnap.empty) {
+        const last10Digits = cleanSenderPhone.slice(-10);
+        const isBlocked = blockedSnap.docs.some(docSnap => {
+          const data = docSnap.data();
+          const bClean = (data.cleanPhone || data.phone || '').replace(/\D/g, '');
+          if (!bClean) return false;
+          return bClean.endsWith(last10Digits) || last10Digits.endsWith(bClean.slice(-10));
+        });
+
+        if (isBlocked) {
+          console.warn(`[Webhook Bot 🚫] Sender ${senderPhone} (${cleanSenderPhone}) is in blocked list. Ignoring message.`);
+          return;
+        }
+      }
+    } catch (blockedErr) {
+      console.error('[Blocked Check Error]:', blockedErr);
+    }
+
     let senderInfoParts = [];
+    let matchingAsServant = [];
+    let matchingAsStudent = [];
+    let matchingAsParent = [];
 
     try {
-      // 1. Search in servants
-      const servantsSnap = await db.collection('servants').get();
-      const matchingServants = servantsSnap.docs
-        .map(doc => doc.data())
-        .filter(s => {
-          const p = String(s.phone || '').replace(/\D/g, '');
-          return p && p.slice(-10) === cleanSenderPhone.slice(-10);
+      const last10Digits = cleanSenderPhone.slice(-10);
+      const phoneVariants = [
+        last10Digits,
+        `0${last10Digits}`,
+        `20${last10Digits}`,
+        `+20${last10Digits}`,
+        cleanSenderPhone
+      ].filter(Boolean);
+
+      // Execute indexed queries in parallel
+      const [fatherSnap, motherSnap, studentPhoneSnap, servantSnap] = await Promise.all([
+        db.collection('students').where('fatherPhone', 'in', phoneVariants).get(),
+        db.collection('students').where('motherPhone', 'in', phoneVariants).get(),
+        db.collection('students').where('phone', 'in', phoneVariants).get(),
+        db.collection('servants').where('phone', 'in', phoneVariants).get()
+      ]);
+
+      const parentStudentsMap = new Map();
+      fatherSnap.docs.forEach(doc => parentStudentsMap.set(doc.id, { id: doc.id, ...doc.data() }));
+      motherSnap.docs.forEach(doc => parentStudentsMap.set(doc.id, { id: doc.id, ...doc.data() }));
+
+      matchingAsParent = Array.from(parentStudentsMap.values());
+
+      // Emergency contacts check (fallback: only if parent not found, we fetch to check emergency contacts)
+      if (matchingAsParent.length === 0) {
+        console.log('[Webhook Bot] Direct queries yielded no parents. Running emergency contact fallback...');
+        const studentsSnapForSender = await db.collection('students').get();
+        const studentsListForSender = studentsSnapForSender.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        matchingAsParent = studentsListForSender.filter(s => {
+          if (!Array.isArray(s.parentsContacts)) return false;
+          return s.parentsContacts.some(contact => {
+            if (!contact || !contact.phone) return false;
+            const cleanContactPhone = String(contact.phone).replace(/\D/g, '');
+            return cleanContactPhone.slice(-10) === last10Digits;
+          });
         });
-      
-      if (matchingServants.length > 0) {
-        senderInfoParts.push(`خادم: ${matchingServants[0].name}`);
       }
 
-      // 2. Search in students
-      const studentsSnapForSender = await db.collection('students').get();
-      const studentsListForSender = studentsSnapForSender.docs.map(doc => doc.data());
+      const studentMap = new Map();
+      studentPhoneSnap.docs.forEach(doc => studentMap.set(doc.id, { id: doc.id, ...doc.data() }));
+      matchingAsStudent = Array.from(studentMap.values());
+      matchingAsServant = servantSnap.docs.map(doc => doc.data());
 
-      const matchingAsStudent = studentsListForSender.filter(s => {
-        const phones = [];
-        if (s.phone) phones.push(String(s.phone).replace(/\D/g, ''));
-        if (Array.isArray(s.phones)) {
-          s.phones.forEach(p => { if (p) phones.push(String(p).replace(/\D/g, '')); });
-        }
-        return phones.some(p => p && p.slice(-10) === cleanSenderPhone.slice(-10));
-      });
-
+      if (matchingAsServant.length > 0) {
+        senderInfoParts.push(`خادم: ${matchingAsServant[0].name}`);
+      }
       if (matchingAsStudent.length > 0) {
         senderInfoParts.push(`مخدوم: ${matchingAsStudent[0].name}`);
       }
-
-      const matchingAsParent = studentsListForSender.filter(s => {
-        const phones = [];
-        if (s.fatherPhone) phones.push(String(s.fatherPhone).replace(/\D/g, ''));
-        if (s.motherPhone) phones.push(String(s.motherPhone).replace(/\D/g, ''));
-        if (Array.isArray(s.parentsContacts)) {
-          s.parentsContacts.forEach(contact => {
-            if (contact && contact.phone) phones.push(String(contact.phone).replace(/\D/g, ''));
-          });
-        }
-        return phones.some(p => p && p.slice(-10) === cleanSenderPhone.slice(-10));
-      });
-
       if (matchingAsParent.length > 0) {
         const studentNames = matchingAsParent.map(s => s.name || 'مخدوم').join('، ');
         senderInfoParts.push(`ولي أمر: ${studentNames}`);
@@ -1562,118 +1795,134 @@ app.post('/api/webhook', async (req, res) => {
 
     const senderInfo = senderInfoParts.join(' / ') || 'رقم غير مسجل';
 
-    const studentCode = messageText.replace(/\D/g, '').trim();
-    if (!studentCode) {
-      return;
-    }
-
-    let studentDoc = null;
-    let studentData = null;
+    // Normalize text and check if digits only
+    const convertArabicNumerals = (str) => {
+      const arabicNumerals = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];
+      let res = str;
+      for (let i = 0; i < 10; i++) {
+        res = res.replace(arabicNumerals[i], String(i));
+      }
+      return res;
+    };
     
-    let studentsQuery = await db.collection('students').where('code', '==', studentCode).get();
-    if (studentsQuery.empty) {
-      studentsQuery = await db.collection('students').where('student_code', '==', studentCode).get();
-    }
-    
-    if (!studentsQuery.empty) {
-      studentDoc = studentsQuery.docs[0];
-      studentData = studentDoc.data();
-    }
+    const normalizedText = convertArabicNumerals(messageText);
+    const isDigitsOnly = /^\d+$/.test(normalizedText);
 
-    if (!studentData) {
-      console.log(`[Webhook Bot 🔍] Student code "${studentCode}" not found.`);
-      await db.collection('webhookQueryLogs').add({
-        senderPhone: senderPhone,
-        senderInfo: senderInfo,
-        studentCode: studentCode,
-        studentName: 'غير معروف',
-        status: 'failed',
-        reason: 'كود الطالب غير مسجل في النظام',
-        timestamp: new Date().toISOString()
-      });
-      return;
-    }
-
-    const studentName = studentData.name || 'مخدوم';
-
-    // cleanSenderPhone is already declared above
-    
-    // 1. Gather registered parent phones
-    const parentPhones = [];
-    if (studentData.fatherPhone) parentPhones.push(String(studentData.fatherPhone).replace(/\D/g, ''));
-    if (studentData.motherPhone) parentPhones.push(String(studentData.motherPhone).replace(/\D/g, ''));
-    if (Array.isArray(studentData.parentsContacts)) {
-      studentData.parentsContacts.forEach(contact => {
-        if (contact && contact.phone) {
-          parentPhones.push(String(contact.phone).replace(/\D/g, ''));
-        }
-      });
-    }
-    const cleanParentPhones = [...new Set(parentPhones.filter(Boolean))];
-
-    // 2. Gather student personal phones
-    const studentPhones = [];
-    if (studentData.phone) studentPhones.push(String(studentData.phone).replace(/\D/g, ''));
-    if (Array.isArray(studentData.phones)) {
-      studentData.phones.forEach(p => {
-        if (p) studentPhones.push(String(p).replace(/\D/g, ''));
-      });
-    }
-    const cleanStudentPhones = [...new Set(studentPhones.filter(Boolean))];
-
-    // 3. Apply business logic:
-    // If parent phones exist, ONLY parent phones are authorized to query.
-    // If NO parent phones exist, student personal phones can query as fallback.
-    let authorizedPhones = [];
-    if (cleanParentPhones.length > 0) {
-      authorizedPhones = cleanParentPhones;
-    } else {
-      authorizedPhones = cleanStudentPhones;
-    }
-
-    const isAuthorized = authorizedPhones.some(phone => {
-      if (!phone) return false;
-      const normalizedPhone = phone.slice(-10);
-      const normalizedSender = cleanSenderPhone.slice(-10);
-      return normalizedPhone === normalizedSender && normalizedPhone.length >= 10;
-    });
-
-    if (!isAuthorized) {
-      console.warn(`[Webhook Bot 🔒] Unauthorized query for ${studentName} (${studentCode}) from ${senderPhone}`);
+    if (isDigitsOnly) {
+      // BRANCH A: Digits only (skip AI, run legacy template code)
+      const studentCode = normalizedText;
       
-      await db.collection('webhookQueryLogs').add({
-        senderPhone: senderPhone,
-        senderInfo: senderInfo,
-        studentCode: studentCode,
-        studentName: studentName,
-        status: 'failed',
-        reason: 'رقم الهاتف غير متطابق مع أرقام ولي الأمر المسجلة',
-        timestamp: new Date().toISOString()
+      let studentDoc = null;
+      let studentData = null;
+      
+      let studentsQuery = await db.collection('students').where('code', '==', studentCode).get();
+      if (studentsQuery.empty) {
+        studentsQuery = await db.collection('students').where('student_code', '==', studentCode).get();
+      }
+      
+      if (!studentsQuery.empty) {
+        studentDoc = studentsQuery.docs[0];
+        studentData = studentDoc.data();
+      }
+
+      if (!studentData) {
+        console.log(`[Webhook Bot 🔍] Student code "${studentCode}" not found.`);
+        await db.collection('webhookQueryLogs').add({
+          senderPhone: senderPhone,
+          senderInfo: senderInfo,
+          studentCode: studentCode,
+          studentName: 'غير معروف',
+          status: 'failed',
+          reason: 'كود الطالب غير مسجل في النظام',
+          questionText: messageText || `استعلام كود: ${studentCode}`,
+          replyText: 'كود الطالب غير مسجل في النظام',
+          isAIQuery: true,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      const studentName = studentData.name || 'مخدوم';
+
+      // 1. Gather registered parent phones
+      const parentPhones = [];
+      if (studentData.fatherPhone) parentPhones.push(String(studentData.fatherPhone).replace(/\D/g, ''));
+      if (studentData.motherPhone) parentPhones.push(String(studentData.motherPhone).replace(/\D/g, ''));
+      if (Array.isArray(studentData.parentsContacts)) {
+        studentData.parentsContacts.forEach(contact => {
+          if (contact && contact.phone) {
+            parentPhones.push(String(contact.phone).replace(/\D/g, ''));
+          }
+        });
+      }
+      const cleanParentPhones = [...new Set(parentPhones.filter(Boolean))];
+
+      // 2. Gather student personal phones
+      const studentPhones = [];
+      if (studentData.phone) studentPhones.push(String(studentData.phone).replace(/\D/g, ''));
+      if (Array.isArray(studentData.phones)) {
+        studentData.phones.forEach(p => {
+          if (p) studentPhones.push(String(p).replace(/\D/g, ''));
+        });
+      }
+      const cleanStudentPhones = [...new Set(studentPhones.filter(Boolean))];
+
+      // 3. Apply business logic:
+      // If parent phones exist, ONLY parent phones are authorized to query.
+      // If NO parent phones exist, student personal phones can query as fallback.
+      let authorizedPhones = [];
+      if (cleanParentPhones.length > 0) {
+        authorizedPhones = cleanParentPhones;
+      } else {
+        authorizedPhones = cleanStudentPhones;
+      }
+
+      const isAuthorized = authorizedPhones.some(phone => {
+        if (!phone) return false;
+        const normalizedPhone = phone.slice(-10);
+        const normalizedSender = cleanSenderPhone.slice(-10);
+        return normalizedPhone === normalizedSender && normalizedPhone.length >= 10;
       });
-      return;
-    }
 
-    console.log(`[Webhook Bot 🔓] Authorized query for ${studentName} from ${senderPhone}`);
+      if (!isAuthorized) {
+        console.warn(`[Webhook Bot 🔒] Unauthorized query for ${studentName} (${studentCode}) from ${senderPhone}`);
+        
+        await db.collection('webhookQueryLogs').add({
+          senderPhone: senderPhone,
+          senderInfo: senderInfo,
+          studentCode: studentCode,
+          studentName: studentName,
+          status: 'failed',
+          reason: 'رقم الهاتف غير متطابق مع أرقام ولي الأمر المسجلة',
+          questionText: messageText || `استعلام عن الكود: ${studentCode}`,
+          replyText: 'رقم الهاتف غير متطابق مع أرقام ولي الأمر المسجلة',
+          isAIQuery: true,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
 
-    const cairoString = new Date().toLocaleString("sv-SE", { timeZone: "Africa/Cairo" });
-    const nowInEgypt = new Date(cairoString.replace(' ', 'T'));
-    
-    const selectedMonth = nowInEgypt.getMonth() + 1;
-    const selectedYear = nowInEgypt.getFullYear();
-    const start = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
-    const end = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
+      console.log(`[Webhook Bot 🔓] Authorized query for ${studentName} from ${senderPhone}`);
 
-    const pointsSnap = await db.collection('pointsHistory')
-      .where('createdAt', '>=', Timestamp.fromDate(start))
-      .where('createdAt', '<=', Timestamp.fromDate(end))
-      .get();
-    const pointsHistoryList = pointsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const cairoString = new Date().toLocaleString("sv-SE", { timeZone: "Africa/Cairo" });
+      const nowInEgypt = new Date(cairoString.replace(' ', 'T'));
+      
+      const selectedMonth = nowInEgypt.getMonth() + 1;
+      const selectedYear = nowInEgypt.getFullYear();
+      const start = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
+      const end = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
 
-    // Fetch configs for weekly and monthly templates
-    const templateConfigDoc = await db.collection('report_templates').doc('config').get();
-    const templateConfig = templateConfigDoc.exists ? templateConfigDoc.data() : {};
+      const pointsSnap = await db.collection('pointsHistory')
+        .where('createdAt', '>=', Timestamp.fromDate(start))
+        .where('createdAt', '<=', Timestamp.fromDate(end))
+        .get();
+      const pointsHistoryList = pointsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    const DEFAULT_MONTHLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+      // Fetch configs for weekly and monthly templates
+      const templateConfigDoc = await db.collection('report_templates').doc('config').get();
+      const templateConfig = templateConfigDoc.exists ? templateConfigDoc.data() : {};
+
+      const DEFAULT_MONTHLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
 
 سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
 حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الشهر:
@@ -1683,7 +1932,7 @@ app.post('/api/webhook', async (req, res) => {
 📝 ملاحظات الخدمة: {notes}
 صلوا لأجل الخدمة دائماً.`;
 
-    const DEFAULT_WEEKLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+      const DEFAULT_WEEKLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
 
 سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
 حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الأسبوع:
@@ -1694,66 +1943,829 @@ app.post('/api/webhook', async (req, res) => {
 📝 ملاحظات الخدمة: {notes}
 صلوا لأجل الخدمة دائماً.`;
 
-    const monthlyTemplate = templateConfig.monthlyTemplate || DEFAULT_MONTHLY_TEMPLATE;
-    const weeklyTemplate = templateConfig.weeklyTemplate || DEFAULT_WEEKLY_TEMPLATE;
+      const monthlyTemplate = templateConfig.monthlyTemplate || DEFAULT_MONTHLY_TEMPLATE;
+      const weeklyTemplate = templateConfig.weeklyTemplate || DEFAULT_WEEKLY_TEMPLATE;
 
-    const cleanMessage = (messageText || '').toLowerCase().trim();
-    // Keywords for weekly report
-    const isWeeklyQuery = /الاسبوع|أسبوع|جمعة|جمعه|المرة اللي فاتت|المرة الفاتت|المره اللي فاتت|المره الفاتت|جمعه فاتت/i.test(cleanMessage);
+      const cleanMessage = (messageText || '').toLowerCase().trim();
+      // Keywords for weekly report
+      const isWeeklyQuery = /الاسبوع|أسبوع|جمعة|جمعه|المرة اللي فاتت|المرة الفاتت|المره اللي فاتت|المره الفاتت|جمعه فاتت/i.test(cleanMessage);
 
-    let reportText = '';
+      let reportText = '';
 
-    if (isWeeklyQuery) {
-      // 1. Compile weekly variables
-      const variables = compileStudentVariablesBackend(studentData, { reportType: 'weekly' }, pointsHistoryList, nowInEgypt);
-      const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+      if (isWeeklyQuery) {
+        // 1. Compile weekly variables
+        const variables = compileStudentVariablesBackend(studentData, { reportType: 'weekly' }, pointsHistoryList, nowInEgypt);
+        const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+        
+        // Compile weekly traits
+        const studentLogs = pointsHistoryList.filter(log => log.studentId === studentDoc.id && (log.amount || 0) > 0);
+        const reasons = studentLogs.map(log => log.reason).filter(Boolean);
+        const uniqueReasons = [...new Set(reasons)];
+        const traits = uniqueReasons.length > 0 ? uniqueReasons.join('، ') : "الالتزام وحسن السلوك";
+
+        reportText = weeklyTemplate
+          .replace(/{stageClass}/g, stageClass)
+          .replace(/{genderLabel}/g, genderLabel)
+          .replace(/{firstName}/g, firstName)
+          .replace(/{massCount}/g, massCount)
+          .replace(/{serviceCount}/g, serviceCount)
+          .replace(/{traits}/g, traits)
+          .replace(/{confessionStatus}/g, confessionStatus)
+          .replace(/{notes}/g, notes || 'لا يوجد');
+      } else {
+        // 2. Compile monthly variables
+        const variables = compileStudentVariablesBackend(studentData, { reportType: 'monthly' }, pointsHistoryList, nowInEgypt);
+        const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+
+        reportText = monthlyTemplate
+          .replace(/{stageClass}/g, stageClass)
+          .replace(/{genderLabel}/g, genderLabel)
+          .replace(/{firstName}/g, firstName)
+          .replace(/{massCount}/g, massCount)
+          .replace(/{serviceCount}/g, serviceCount)
+          .replace(/{confessionStatus}/g, confessionStatus)
+          .replace(/{notes}/g, notes || 'لا يوجد');
+      }
+
+      const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, reportText);
+
+      await db.collection('webhookQueryLogs').add({
+        senderPhone: senderPhone,
+        senderInfo: senderInfo,
+        studentCode: studentCode,
+        studentName: studentName,
+        status: success ? 'sent' : 'failed',
+        reason: success ? 'تم إرسال تقرير المخدوم بنجاح' : 'فشل إرسال رسالة الواتساب عبر الـ API',
+        questionText: messageText || `طلب تقرير الكود ${studentCode}`,
+        replyText: reportText,
+        isAIQuery: true,
+        timestamp: new Date().toISOString()
+      });
       
-      // Compile weekly traits
-      const studentLogs = pointsHistoryList.filter(log => log.studentId === studentDoc.id && (log.amount || 0) > 0);
-      const reasons = studentLogs.map(log => log.reason).filter(Boolean);
-      const uniqueReasons = [...new Set(reasons)];
-      const traits = uniqueReasons.length > 0 ? uniqueReasons.join('، ') : "الالتزام وحسن السلوك";
-
-      reportText = weeklyTemplate
-        .replace(/{stageClass}/g, stageClass)
-        .replace(/{genderLabel}/g, genderLabel)
-        .replace(/{firstName}/g, firstName)
-        .replace(/{massCount}/g, massCount)
-        .replace(/{serviceCount}/g, serviceCount)
-        .replace(/{traits}/g, traits)
-        .replace(/{confessionStatus}/g, confessionStatus)
-        .replace(/{notes}/g, notes || 'لا يوجد');
     } else {
-      // 2. Compile monthly variables
-      const variables = compileStudentVariablesBackend(studentData, { reportType: 'monthly' }, pointsHistoryList, nowInEgypt);
-      const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+      // Check if servant asking for attendance
+      const isServant = matchingAsServant.length > 0;
+      const isParent = matchingAsParent.length > 0;
+      const servantData = isServant ? matchingAsServant[0] : null;
+      
+      let isAttendanceReportQuery = false;
+      if (isServant) {
+        // A class report query must explicitly ask for the class report (e.g., "تقرير الفصل", "حضور الفصل", "كل الفصل", "كشف الفصل")
+        // and MUST NOT ask about a specific student by name or code.
+        const hasExplicitClassQuery = /تقرير الفصل|حضور الفصل|غياب الفصل|كل الفصل|كشف الفصل|كشف حضور|تقرير المخدومين|حضور فصلي|غياب فصلي/i.test(messageText);
+        const hasIndividualStudentMatch = /\b\d{4}\b/.test(messageText) || /المخدوم\s+[\u0600-\u06FF]+/i.test(messageText) || /طالب\s+[\u0600-\u06FF]+/i.test(messageText);
+        
+        if (hasExplicitClassQuery && !hasIndividualStudentMatch) {
+          isAttendanceReportQuery = true;
+        }
+      }
 
-      reportText = monthlyTemplate
-        .replace(/{stageClass}/g, stageClass)
-        .replace(/{genderLabel}/g, genderLabel)
-        .replace(/{firstName}/g, firstName)
-        .replace(/{massCount}/g, massCount)
-        .replace(/{serviceCount}/g, serviceCount)
-        .replace(/{confessionStatus}/g, confessionStatus)
-        .replace(/{notes}/g, notes || 'لا يوجد');
+      if (isAttendanceReportQuery) {
+        try {
+          const cairoString = new Date().toLocaleString("sv-SE", { timeZone: "Africa/Cairo" });
+          const todayEgyptStr = cairoString.split(' ')[0]; // YYYY-MM-DD
+          
+          let targetDateStr = todayEgyptStr;
+          
+          // 1. Check if they specify a date in YYYY-MM-DD format
+          const dateMatch = messageText.match(/\b\d{4}-\d{2}-\d{2}\b/);
+          if (dateMatch) {
+            targetDateStr = dateMatch[0];
+          } else {
+            // 2. Check if they ask about "Friday" (الجمعة) or if today is NOT Friday and they just ask for report
+            const mentionsToday = /نهاردة|نهارده|اليوم/i.test(messageText);
+            const mentionsFriday = /جمعة|جمعه/i.test(messageText);
+            const isTodayFriday = new Date(cairoString.replace(' ', 'T')).getDay() === 5;
+            
+            if (!mentionsToday && (mentionsFriday || !isTodayFriday)) {
+              // Calculate most recent Friday
+              const localDate = new Date(cairoString.replace(' ', 'T'));
+              const day = localDate.getDay();
+              let diff = day - 5;
+              if (diff < 0) diff += 7;
+              const target = new Date(localDate);
+              target.setDate(localDate.getDate() - diff);
+              targetDateStr = target.toISOString().split('T')[0];
+            }
+          }
+          
+          const servantClass = servantData.assignedClass || '';
+          if (!servantClass) {
+            const replyText = "سلام ونعمة يا قدس الخادم. لم نجد فصلاً مسجلاً باسمكم في النظام للاستعلام عنه. برجاء التواصل مع أمين الخدمة.";
+            await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+            return;
+          }
+
+          const classStudentsSnap = await db.collection('students').where('class', '==', servantClass).get();
+          if (classStudentsSnap.empty) {
+            const replyText = `سلام ونعمة يا قدس الخادم. لا يوجد مخدومين مسجلين في فصلك (${servantClass}) حالياً.`;
+            await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+            return;
+          }
+          
+          const classStudents = classStudentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          
+          const startOfDay = new Date(targetDateStr + 'T00:00:00');
+          const endOfDay = new Date(targetDateStr + 'T23:59:59');
+          
+          const pointsSnap = await db.collection('pointsHistory')
+            .where('createdAt', '>=', Timestamp.fromDate(startOfDay))
+            .where('createdAt', '<=', Timestamp.fromDate(endOfDay))
+            .get();
+          
+          const todayPointsList = pointsSnap.docs.map(doc => doc.data());
+          const pointsMap = {}; // { studentId: totalPoints }
+          todayPointsList.forEach(log => {
+            if (log.studentId) {
+              pointsMap[log.studentId] = (pointsMap[log.studentId] || 0) + (log.amount || 0);
+            }
+          });
+          
+          const attendedList = [];
+          const absentList = [];
+          
+          classStudents.forEach(student => {
+            const attendedService = (student.attendance || []).includes(targetDateStr);
+            const attendedLiturgy = (student.liturgyAttendance || []).includes(targetDateStr);
+            const todayPoints = pointsMap[student.id] || 0;
+            
+            if (attendedService || attendedLiturgy) {
+              let attendLabel = "";
+              if (attendedService && attendedLiturgy) attendLabel = "قداس وخدمة";
+              else if (attendedLiturgy) attendLabel = "قداس فقط";
+              else attendLabel = "خدمة فقط";
+              
+              attendedList.push({ name: student.name, label: attendLabel, points: todayPoints });
+            } else {
+              absentList.push(student.name);
+            }
+          });
+          
+          let reportMsg = `سلام ونعمة يا قدس الخادم / ${servantData.name || 'مبارك'} 🌸\n`;
+          reportMsg += `تقرير حضور ونقاط فصل *(${servantClass})* يوم *(${targetDateStr})*:\n\n`;
+          
+          reportMsg += `🏫 *الحاضرون (${attendedList.length}):*\n`;
+          if (attendedList.length === 0) {
+            reportMsg += `- لا يوجد حضور مسجل لهذا اليوم بعد.\n`;
+          } else {
+            attendedList.forEach((s, idx) => {
+              reportMsg += `${idx + 1}. 🌟 ${s.name} (${s.label}) -> ${s.points} نقطة\n`;
+            });
+          }
+          
+          reportMsg += `\n❌ *الغائبون (${absentList.length}):*\n`;
+          if (absentList.length === 0) {
+            reportMsg += `- لا يوجد غياب مسجل لهذا اليوم (الحضور كامل!).\n`;
+          } else {
+            absentList.forEach((name, idx) => {
+              reportMsg += `${idx + 1}. ${name}\n`;
+            });
+          }
+          
+          reportMsg += `\nصلوا لأجل الخدمة دائماً.`;
+          
+          const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, reportMsg);
+          
+          await db.collection('webhookQueryLogs').add({
+            senderPhone: senderPhone,
+            senderInfo: `خادم: ${servantData.name} (${servantClass})`,
+            studentCode: 'SERVANT_QUERY',
+            studentName: 'تقرير الفصل',
+            status: success ? 'sent' : 'failed',
+            reason: success ? 'استعلام حضور الفصل للخدام' : 'فشل إرسال رسالة الواتساب عبر الـ API',
+            questionText: messageText,
+            replyText: reportMsg,
+            isAIQuery: true,
+            timestamp: new Date().toISOString()
+          });
+          return;
+        } catch (servantErr) {
+          console.error('[Servant Query Error]:', servantErr);
+          const errReply = "عذراً يا قدس الخادم، حدث خطأ أثناء تجميع تقرير الفصل، برجاء المحاولة لاحقاً.";
+          await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, errReply);
+          return;
+        }
+      }
+
+      // Pre-check for abusive / offensive / disrespect language
+      const cleanMsgLower = (messageText || '').toLowerCase().trim();
+      const abusiveKeywords = ['كفار', 'كافر', 'كفرة', 'شتيمة', 'انتم كفار', 'انتوا كفار', 'حرامية', 'يا كافر', 'ياكافر', 'كلاب', 'زبالة'];
+      const isAbusive = abusiveKeywords.some(kw => cleanMsgLower.includes(kw));
+
+      if (isAbusive) {
+        console.warn(`[Webhook Bot 🛡️] Abusive message detected from ${senderPhone}: "${messageText}"`);
+        const replyText = "سلام ونعمة يا فندم. نرجو الالتزام باللياقة والذوق العام في التعامل. هذه القناة مخصصة لخدمة مدارس الأحد وشؤون الكنيسة بكل احترام ومحبة. تم تسجيل الرسالة وتوجيهها للإدارة. ⛪";
+        const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+
+        await db.collection('webhookQueryLogs').add({
+          senderPhone: senderPhone,
+          senderInfo: senderInfo,
+          studentCode: 'AI_MODERATION',
+          studentName: 'تحذير ذوق عام',
+          status: success ? 'sent' : 'failed',
+          reason: 'تم الرد التلقائي برجاء الالتزام باللياقة والذوق العام',
+          questionText: messageText,
+          replyText: replyText,
+          isAIQuery: true,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      // BRANCH B: Free text (AI Path with Gemini key rotation and bulletproof fallback)
+      try {
+        const cleanJsonString = (str) => {
+          if (!str) return "";
+          try {
+            const start = str.indexOf('{');
+            const end = str.lastIndexOf('}');
+            if (start !== -1 && end !== -1 && end > start) {
+              return str.substring(start, end + 1).trim();
+            }
+          } catch (e) {}
+          return str.replace(/```json/gi, '').replace(/```/g, '').trim();
+        };
+
+        // Fetch custom knowledge base from Firebase
+        let kbText = "";
+        try {
+          const kbSnap = await db.collection('botKnowledgeBase').get();
+          let hasSafetyRule = false;
+
+          if (!kbSnap.empty) {
+            kbText = "\nHere are custom questions previously answered by Sunday School servants, use them if the user's question matches:\n";
+            kbSnap.docs.forEach(doc => {
+              const data = doc.data();
+              if (data.question && data.answer) {
+                kbText += `Question: ${data.question}\nAnswer: ${data.answer}\n`;
+                if (data.question.includes('الإساءة') || data.question.includes('غير اللائقة') || data.question.includes('الشتائم')) {
+                  hasSafetyRule = true;
+                }
+              }
+            });
+          }
+
+          if (!hasSafetyRule) {
+            const safetyQuestion = "التعامل مع الرسائل غير اللائقة أو الشتائم والإساءة للخدمة والكنيسة";
+            const safetyAnswer = "سلام ونعمة يا فندم. نرجو الالتزام باللياقة والذوق العام في التعامل. هذه القناة مخصصة لخدمة مدارس الأحد وشؤون الكنيسة بكل احترام ومحبة. تم تسجيل الرسالة وتوجيهها للإدارة. ⛪";
+            await db.collection('botKnowledgeBase').add({
+              question: safetyQuestion,
+              answer: safetyAnswer,
+              addedBy: "النظام (قواعد اللياقة والوقاية)",
+              timestamp: new Date().toISOString()
+            });
+            kbText += `Question: ${safetyQuestion}\nAnswer: ${safetyAnswer}\n`;
+          }
+        } catch (kbErr) {
+          console.error('[KB Fetch Error]:', kbErr);
+        }
+
+        const classificationPrompt = `You are a smart AI classifier for the "Khidmety" (خدمتي) Sunday School system.
+Your job is to analyze the incoming message from a parent or user and return a JSON object classifying their intent.
+
+CRITICAL READING & COMPREHENSION RULE:
+You MUST read and analyze the ENTIRE user message from the very first word to the VERY LAST character.
+Do not stop reading early, do not skip trailing text or URLs, and do not base your intent on just the opening greeting.
+Pay attention to the full context, stories, or the core question placed at the end of the message. Understand what the user fundamentally wants across their whole text.
+
+CRITICAL SAFETY & MODERATION RULE:
+If the user's message contains profanity, insults, offensive words, aggressive attacks, or disrespect towards the church, Sunday school service, or servants:
+Do NOT argue or repeat offensive words. Set intent to "general_question" and return this exact respectful boundary response in "reply":
+"سلام ونعمة يا فندم. نرجو الالتزام باللياقة والذوق العام في التعامل. هذه القناة مخصصة لخدمة مدارس الأحد وشؤون الكنيسة بكل احترام ومحبة. تم تسجيل الرسالة وتوجيهها للإدارة. ⛪"
+
+You must categorize the message into one of three intents:
+1. "student_query": The user is asking about an INDIVIDUAL single student (their attendance today, their report, behavior, traits, or grades). ONLY use "student_query" if the message mentions an individual student's name, a 4-digit student code, or a parent asking specifically about their own child ("ابني", "بنتي").
+   For "student_query", determine:
+   - "query_type": "full_report" | "specific_attendance" | "none"
+   - "student_code": 4-digit code if present in the message, otherwise null.
+
+2. "general_question": The user is asking a general question about church schedule, service times, location, feast dates, or general greeting. (e.g., "القداس بكرة الساعة كام؟", "كل سنة وانتم طيبين", "مواعيد مدارس الاحد ايه؟").
+   Use the following facts and custom Knowledge Base to answer:
+   - Sunday school service (مدارس الأحد): Every Friday at 8:00 AM starts with Liturgy (القداس الإلهي), followed by class lessons from 9:30 AM to 11:00 AM.
+   - Location: Church of Saint George (كنيسة مارجرجس).
+   - Confession fathers (آباء الاعتراف) are available after the Friday service.
+   ${kbText}
+
+3. "unknown_question": The user is asking about something not covered in the facts or KB (e.g. details about a specific trip, registration, servant reports, list requests, complex requests, etc.).
+   Generate a polite apology in Egyptian Arabic saying that this information is not available right now with the bot, but has been forwarded to the servants/admins to handle soon. Put this in "reply".
+
+Respond ONLY with JSON format:
+{
+  "intent": "student_query" | "general_question" | "unknown_question",
+  "query_type": "full_report" | "specific_attendance" | "none",
+  "student_code": "1001" | null,
+  "issue_type": "service_issue" | "tech_issue" | "none",
+  "reply": "..."
+}
+Rule for "issue_type":
+- "service_issue": Set to "service_issue" if the message complains about Sunday School physical service, room heat, AC, chairs, bus, hall, noise, food, schedule, or field logistics (e.g., "الجو حر", "التكييف مش شغال", "مفيش كراسي", "الباص اتأخر").
+- "tech_issue": Set to "tech_issue" if the message complains about website bugs, app glitches, bot response delays, server issues, or technical problems (e.g., "البوت بطيء", "في مشكلة في الرد", "الرابط مش شغال").
+- "none": Set to "none" if the message is a regular question, greeting, or student query without complaints.
+
+Respond ONLY with valid JSON. Do not include markdown formatting or \`\`\`json blocks.`;
+
+        console.log(`[Webhook Bot AI 🤖] Calling Gemini for intent classification from ${senderPhone}...`);
+        const geminiResponseText = await callGeminiWithRotation(messageText, classificationPrompt);
+        
+        const extractReplyAndIntent = (rawText) => {
+            let result = {
+                intent: 'general_question',
+                query_type: 'none',
+                student_code: null,
+                issue_type: 'none',
+                reply: ''
+            };
+            if (!rawText || typeof rawText !== 'string') return result;
+
+            const cleanedStr = cleanJsonString(rawText);
+
+            try {
+                const parsed = JSON.parse(cleanedStr);
+                if (parsed && typeof parsed === 'object') {
+                    result.intent = parsed.intent || result.intent;
+                    result.query_type = parsed.query_type || result.query_type;
+                    result.student_code = parsed.student_code || result.student_code;
+                    result.issue_type = parsed.issue_type || result.issue_type;
+                    if (parsed.reply && typeof parsed.reply === 'string') {
+                        result.reply = parsed.reply.trim();
+                        return result;
+                    }
+                }
+            } catch (e) {
+                console.warn('[Gemini JSON Parse Warning - using fallback regex extraction]:', e.message);
+            }
+
+            const intentMatch = rawText.match(/"intent"\s*:\s*"([^"]+)"/i);
+            if (intentMatch) result.intent = intentMatch[1];
+
+            const issueTypeMatch = rawText.match(/"issue_type"\s*:\s*"([^"]+)"/i);
+            if (issueTypeMatch) result.issue_type = issueTypeMatch[1];
+
+            const studentCodeMatch = rawText.match(/"student_code"\s*:\s*"([^"]+)"/i);
+            if (studentCodeMatch) result.student_code = studentCodeMatch[1];
+
+            const queryTypeMatch = rawText.match(/"query_type"\s*:\s*"([^"]+)"/i);
+            if (queryTypeMatch) result.query_type = queryTypeMatch[1];
+
+            const replyMatch = rawText.match(/"reply"\s*:\s*"([\s\S]*?)"(?:\s*,\s*"|\s*\}\s*$)/i) ||
+                               rawText.match(/"reply"\s*:\s*"([\s\S]*?)"/i);
+            if (replyMatch && replyMatch[1]) {
+                result.reply = replyMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').trim();
+            } else {
+                let sanitized = rawText
+                    .replace(/\{\s*"intent"[\s\S]*?"reply"\s*:\s*"/gi, '')
+                    .replace(/"\s*\}\s*$/gi, '')
+                    .replace(/```json/gi, '')
+                    .replace(/```/g, '')
+                    .trim();
+                result.reply = sanitized;
+            }
+
+            return result;
+        };
+
+        const parsedResponse = extractReplyAndIntent(geminiResponseText);
+        const intent = parsedResponse.intent || 'general_question';
+        const issueType = parsedResponse.issue_type || 'none';
+        
+        if (intent === 'general_question') {
+          // GENERAL QUESTION ROUTE
+          const replyText = parsedResponse.reply || 'أهلاً بك يا فندم! كيف يمكنني مساعدتك؟';
+          const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+
+          await db.collection('webhookQueryLogs').add({
+            senderPhone: senderPhone,
+            senderInfo: senderInfo,
+            studentCode: 'AI_GENERAL',
+            studentName: 'سؤال عام',
+            status: success ? 'sent' : 'failed',
+            reason: success ? `تم الإجابة تلقائياً: ${messageText.slice(0, 30)}` : 'فشل إرسال رسالة الواتساب عبر الـ API',
+            questionText: messageText,
+            replyText: replyText,
+            issueType: issueType,
+            isAIQuery: true,
+            timestamp: new Date().toISOString()
+          });
+          
+        } else if (intent === 'unknown_question') {
+          // UNKNOWN QUESTION ROUTE
+          const replyText = parsedResponse.reply || 'سلام ونعمة يا فندم. المعلومة دي مش متوفرة عندي حالياً، لكن تم توجيه سؤالك لخدام الكنيسة ومتابعته فوراً! ⛪';
+          const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+
+          // Save to unansweredQuestions in Firestore
+          await db.collection('unansweredQuestions').add({
+            senderPhone: senderPhone,
+            senderInfo: senderInfo,
+            questionText: messageText,
+            timestamp: new Date().toISOString(),
+            status: 'pending'
+          });
+
+          await db.collection('webhookQueryLogs').add({
+            senderPhone: senderPhone,
+            senderInfo: senderInfo,
+            studentCode: 'AI_UNANSWERED',
+            studentName: 'سؤال معلق',
+            status: success ? 'sent' : 'failed',
+            reason: success ? 'سؤال معلق وتم توجيهه للخدام بنجاح' : 'فشل إرسال رسالة الواتساب عبر الـ API',
+            questionText: messageText,
+            replyText: replyText,
+            issueType: issueType,
+            isAIQuery: true,
+            timestamp: new Date().toISOString()
+          });
+          
+        } else if (intent === 'student_query') {
+          // STUDENT QUERY ROUTE
+          let targetStudent = null;
+          const codeCandidate = parsedResponse.student_code || (messageText.match(/\b\d{4,}\b/)?.[0]);
+          
+          if (codeCandidate) {
+            let query = await db.collection('students').where('code', '==', codeCandidate).get();
+            if (query.empty) {
+              query = await db.collection('students').where('student_code', '==', codeCandidate).get();
+            }
+            if (!query.empty) {
+              targetStudent = { id: query.docs[0].id, ...query.docs[0].data() };
+            }
+          }
+          
+          if (!targetStudent) {
+            // Find candidates by phone mapping
+            const candidates = [];
+            candidates.push(...matchingAsParent, ...matchingAsStudent);
+            
+            const uniqueCandidates = [];
+            const seenIds = new Set();
+            for (const c of candidates) {
+              if (!seenIds.has(c.id)) {
+                seenIds.add(c.id);
+                uniqueCandidates.push(c);
+              }
+            }
+            
+            if (uniqueCandidates.length === 1) {
+              targetStudent = uniqueCandidates[0];
+            } else if (uniqueCandidates.length > 1) {
+              const msgNorm = normalizeArabic(messageText);
+              let foundByName = null;
+              for (const cand of uniqueCandidates) {
+                const firstName = cand.name ? cand.name.trim().split(' ')[0] : '';
+                if (firstName && msgNorm.includes(normalizeArabic(firstName))) {
+                  foundByName = cand;
+                  break;
+                }
+              }
+              targetStudent = foundByName || uniqueCandidates[0];
+            }
+          }
+
+          // Fallback search by student name across entire database if targetStudent is still null
+          if (!targetStudent) {
+            const cleanMsgNorm = normalizeArabic(messageText);
+            const stopWords = new Set(['عاوز', 'عايز', 'اعرف', 'حضور', 'غياب', 'المخدوم', 'الطالب', 'الاسبوع', 'أسبوع', 'اللي', 'فات', 'الماضي', 'الجمعة', 'جمعة', 'تقرير', 'مخدوم', 'طالب', 'ابني', 'بنتي', 'سلام', 'ونعمة', 'قدس', 'الخادم', 'عن', 'هو', 'هي', 'حضر', 'ولا', 'لأ', 'لا']);
+            
+            const words = cleanMsgNorm
+              .replace(/[^\u0600-\u06FF\w\s]/g, ' ')
+              .split(/\s+/)
+              .filter(w => w.length >= 2 && !stopWords.has(w));
+
+            if (words.length > 0) {
+              const allStudentsSnap = await db.collection('students').get();
+              let bestMatch = null;
+              let maxScore = 0;
+
+              allStudentsSnap.docs.forEach(docSnap => {
+                const sData = docSnap.data();
+                if (!sData.name) return;
+                const sNameNorm = normalizeArabic(sData.name);
+
+                let score = 0;
+                for (const w of words) {
+                  if (sNameNorm.includes(w)) {
+                    score += 1;
+                  }
+                }
+
+                if (score > maxScore) {
+                  maxScore = score;
+                  bestMatch = { id: docSnap.id, ...sData };
+                }
+              });
+
+              if (bestMatch && maxScore >= 1) {
+                targetStudent = bestMatch;
+                console.log(`[Webhook Bot 🎯] Identified student by name search: "${targetStudent.name}" (score: ${maxScore})`);
+              }
+            }
+          }
+
+          if (!targetStudent) {
+            // Fallback if no specific code or student name was in message
+            if (!codeCandidate) {
+              console.log('[Webhook Bot AI 🔄] Misclassified request without student code. Forwarding to unanswered questions.');
+              const replyText = parsedResponse.reply || "سلام ونعمة يا فندم. المعلومة دي مش متوفرة عندي حالياً، لكن تم توجيه سؤالك لخدام الكنيسة ومتابعته فوراً! ⛪";
+              const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+
+              await db.collection('unansweredQuestions').add({
+                senderPhone: senderPhone,
+                senderInfo: senderInfo,
+                questionText: messageText,
+                timestamp: new Date().toISOString(),
+                status: 'pending'
+              });
+
+              await db.collection('webhookQueryLogs').add({
+                senderPhone: senderPhone,
+                senderInfo: senderInfo,
+                studentCode: 'AI_UNANSWERED',
+                studentName: 'سؤال معلق',
+                status: success ? 'sent' : 'failed',
+                reason: success ? 'سؤال معلق وتم توجيهه للخدام بنجاح' : 'فشل إرسال رسالة الواتساب عبر الـ API',
+                questionText: messageText,
+                replyText: replyText,
+                isAIQuery: true,
+                timestamp: new Date().toISOString()
+              });
+              return;
+            }
+
+            // Student code was explicitly supplied but not found
+            const replyText = "سلام ونعمة يا فندم. لم نتمكن من تحديد كود أو اسم المخدوم المراد الاستعلام عنه من رسالتكم، أو أن الهاتف غير مسجل في قاعدة البيانات. برجاء إرسال الكود بالأرقام مباشرة (مثل: 1001) للحصول على تقريره.";
+            const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+            
+            await db.collection('webhookQueryLogs').add({
+              senderPhone: senderPhone,
+              senderInfo: senderInfo,
+              studentCode: 'AI_UNKNOWN_STUDENT',
+              studentName: 'مجهول',
+              status: success ? 'sent' : 'failed',
+              reason: 'لم يتم العثور على مخدوم مرتبط بالرسالة أو بالرقم المتصل',
+              timestamp: new Date().toISOString()
+            });
+            return;
+          }
+
+          // Authorization Check
+          const parentPhones = [];
+          if (targetStudent.fatherPhone) parentPhones.push(String(targetStudent.fatherPhone).replace(/\D/g, ''));
+          if (targetStudent.motherPhone) parentPhones.push(String(targetStudent.motherPhone).replace(/\D/g, ''));
+          if (Array.isArray(targetStudent.parentsContacts)) {
+            targetStudent.parentsContacts.forEach(contact => {
+              if (contact && contact.phone) {
+                parentPhones.push(String(contact.phone).replace(/\D/g, ''));
+              }
+            });
+          }
+          const cleanParentPhones = [...new Set(parentPhones.filter(Boolean))];
+
+          const studentPhones = [];
+          if (targetStudent.phone) studentPhones.push(String(targetStudent.phone).replace(/\D/g, ''));
+          if (Array.isArray(targetStudent.phones)) {
+            targetStudent.phones.forEach(p => {
+              if (p) studentPhones.push(String(p).replace(/\D/g, ''));
+            });
+          }
+          const cleanStudentPhones = [...new Set(studentPhones.filter(Boolean))];
+
+          let authorizedPhones = [];
+          if (cleanParentPhones.length > 0) {
+            authorizedPhones = cleanParentPhones;
+          } else {
+            authorizedPhones = cleanStudentPhones;
+          }
+
+          const isAuthorized = isServant || authorizedPhones.some(phone => {
+            if (!phone) return false;
+            const normalizedPhone = phone.slice(-10);
+            const normalizedSender = cleanSenderPhone.slice(-10);
+            return normalizedPhone === normalizedSender && normalizedPhone.length >= 10;
+          });
+          
+          if (!isAuthorized) {
+            const replyText = `عذراً يا فندم، رقم هاتفكم غير مسجل كولي أمر للمخدوم ${targetStudent.name || ''} ولا تملكون صلاحية الاستعلام عنه. برجاء التواصل مع أمين الخدمة.`;
+            const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+            
+            await db.collection('webhookQueryLogs').add({
+              senderPhone: senderPhone,
+              senderInfo: senderInfo,
+              studentCode: targetStudent.code || 'AI_QUERY',
+              studentName: targetStudent.name || 'غير مصرح له',
+              status: success ? 'sent' : 'failed',
+              reason: 'غير مصرح له بالاستعلام عن هذا الطالب عبر الذكاء الاصطناعي',
+              timestamp: new Date().toISOString()
+            });
+            return;
+          }
+          
+          // Servant Profile / Details Query Route (Code, Address, Phones, Confession Father, Notes)
+          if (isServant && /عنوان|تليفون|تلفون|رقم|أرقام|ارقام|كود|بيانات|تفاصيل|معلومات|اب الاعتراف|أب الاعتراف/i.test(messageText)) {
+            const code = targetStudent.student_code || targetStudent.code || 'غير مسجل';
+            const name = targetStudent.name || 'مخدوم';
+            const studentClass = targetStudent.assignedClass || targetStudent.stage || 'الفصل';
+            const address = targetStudent.address || 'غير مسجل في النظام';
+            const fatherPhone = targetStudent.fatherPhone || 'غير مسجل';
+            const motherPhone = targetStudent.motherPhone || 'غير مسجل';
+            const studentPhone = targetStudent.phone || 'غير مسجل';
+            const confession = targetStudent.confessionFather || 'غير مسجل';
+            const notes = targetStudent.notes || 'لا يوجد ملاحظات مدونة';
+
+            let profileMsg = `سلام ونعمة يا قدس الخادم / ${servantData.name || 'مبارك'} 🌸\n`;
+            profileMsg += `إليك كارت بيانات المخدوم *(${name})* المسجل بفصل *(${studentClass})*:\n\n`;
+            profileMsg += `🆔 *الكود الرسمي:* ${code}\n`;
+            profileMsg += `🏠 *العنوان:* ${address}\n`;
+            profileMsg += `📞 *هاتف الأب:* ${fatherPhone}\n`;
+            profileMsg += `📞 *هاتف الأم:* ${motherPhone}\n`;
+            profileMsg += `📱 *هاتف المخدوم:* ${studentPhone}\n`;
+            profileMsg += `🕊️ *أب الاعتراف:* ${confession}\n`;
+            profileMsg += `📝 *ملاحظات الخدمة:* ${notes}\n\n`;
+            profileMsg += `صلوا لأجل الخدمة دائماً. ⛪`;
+
+            const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, profileMsg);
+
+            await db.collection('webhookQueryLogs').add({
+              senderPhone: senderPhone,
+              senderInfo: senderInfo,
+              studentCode: code,
+              studentName: name,
+              status: success ? 'sent' : 'failed',
+              reason: success ? 'استعلام كارت بيانات مخدوم للخدام' : 'فشل إرسال رسالة الواتساب عبر الـ API',
+              questionText: messageText,
+              replyText: profileMsg,
+              isAIQuery: true,
+              timestamp: new Date().toISOString()
+            });
+            return;
+          }
+
+          const queryType = parsedResponse.query_type || 'full_report';
+
+          if (queryType === 'specific_attendance') {
+            // SPECIFIC ATTENDANCE ROUTE
+            const cairoString = new Date().toLocaleString("sv-SE", { timeZone: "Africa/Cairo" });
+            const todayEgyptStr = cairoString.split(' ')[0]; // YYYY-MM-DD
+            
+            const attendedService = (targetStudent.attendance || []).includes(todayEgyptStr);
+            const attendedLiturgy = (targetStudent.liturgyAttendance || []).includes(todayEgyptStr);
+            const attended = attendedService || attendedLiturgy;
+
+            const firstName = (targetStudent.name || '').split(' ')[0] || 'البطل';
+            const gender = targetStudent.gender || 'boy';
+            const genderLabel = gender === 'boy' ? 'ابننا البطل' : 'بنتنا الجميلة';
+            const classLabel = targetStudent.assignedClass || 'الفصل';
+
+            const attendancePrompt = `اكتب رسالة واتساب دافئة ومرحة بالعامية المصرية لأولياء أمور المخدوم ${firstName} (${genderLabel}) في مدارس أحد ${classLabel}.
+حالة حضور المخدوم اليوم (${todayEgyptStr}) هي: ${attended ? 'حضر القداس والخدمة ومبسوط جداً وسط اخواته' : 'غائب ولم يحضر اليوم ووحشنا جداً ونفسنا يجي المرة القادمة ونحن نصلي لأجله'}.
+اكتب الرسالة بأسلوب خادم مدارس أحد محب ومرحب بالآباء والامهات، مع إضافة إيموجيز مناسبة (⛪، ✨، 🌟).
+ارجع فقط JSON يحتوي على حقل واحد "reply" بالرسالة المكتوبة.`;
+
+            console.log(`[Webhook Bot AI 🤖] Calling Gemini for specific attendance text: ${firstName}...`);
+            const response = await callGeminiWithRotation(attendancePrompt, "You are a warm Sunday School teacher. Respond only with JSON: {\"reply\": \"...\"}");
+            
+            let parsed = { reply: "" };
+            try {
+              parsed = JSON.parse(cleanJsonString(response));
+            } catch (err) {
+              parsed.reply = response.trim();
+            }
+            
+            const attendanceReply = parsed.reply || `سلام ونعمة يا فندم، ${genderLabel} ${firstName} ${attended ? 'حاضر معنا اليوم ومنور الفصل!' : 'غائب اليوم ونتمنى أن يكون بخير وننتظره الأسبوع القادم.'}`;
+            const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, attendanceReply);
+
+            await db.collection('webhookQueryLogs').add({
+              senderPhone: senderPhone,
+              senderInfo: senderInfo,
+              studentCode: targetStudent.code || 'AI_QUERY',
+              studentName: targetStudent.name,
+              status: success ? 'sent' : 'failed',
+              reason: success ? 'استعلام حضور مخصص عبر AI' : 'فشل إرسال رسالة الواتساب عبر الـ API',
+              questionText: messageText,
+              replyText: attendanceReply,
+              isAIQuery: true,
+              timestamp: new Date().toISOString()
+            });
+
+          } else {
+            // FULL REPORT ROUTE (Standard weekly vs monthly compiled templates)
+            const cairoString = new Date().toLocaleString("sv-SE", { timeZone: "Africa/Cairo" });
+            const nowInEgypt = new Date(cairoString.replace(' ', 'T'));
+            
+            const selectedMonth = nowInEgypt.getMonth() + 1;
+            const selectedYear = nowInEgypt.getFullYear();
+            const start = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
+            const end = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
+
+            const pointsSnap = await db.collection('pointsHistory')
+              .where('createdAt', '>=', Timestamp.fromDate(start))
+              .where('createdAt', '<=', Timestamp.fromDate(end))
+              .get();
+            const pointsHistoryList = pointsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            const templateConfigDoc = await db.collection('report_templates').doc('config').get();
+            const templateConfig = templateConfigDoc.exists ? templateConfigDoc.data() : {};
+
+            const DEFAULT_MONTHLY_TEMPLATE = `"فَرِحْتُ بِالْقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+
+سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
+حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الشهر:
+⛪ حضور القداس الإلهي: {massCount}
+🏫 حضور حوش الخدمة: {serviceCount}
+🕊️ جلسة الاعتراف والافتقاد الدوري: {confessionStatus}.
+📝 ملاحظات الخدمة: {notes}
+صلوا لأجل الخدمة دائماً.`;
+
+            const DEFAULT_WEEKLY_TEMPLATE = `"فَرِحْتُ بِالْـقَائِلِينَ لِي: إِلَى بَيْتِ الرَّبِّ نَذْهَبُ" (مز 122)
+
+سلام ونعمة يا فندم من خدمة مدارس أحد {stageClass}.
+حابين نشارك مع حضراتكم تقرير {genderLabel} {firstName} خلال هذا الأسبوع:
+⛪ حضور القداس الإلهي: {massCount}.
+🏫 حضور حوش الخدمة: {serviceCount}.
+🌟 صفات تميز بها هذا الأسبوع: {traits}.
+🕊️ جلسة الاعتراف والافتقاد الدوري: {confessionStatus}.
+📝 ملاحظات الخدمة: {notes}
+صلوا لأجل الخدمة دائماً.`;
+
+            const monthlyTemplate = templateConfig.monthlyTemplate || DEFAULT_MONTHLY_TEMPLATE;
+            const weeklyTemplate = templateConfig.weeklyTemplate || DEFAULT_WEEKLY_TEMPLATE;
+
+            const cleanMessageText = (messageText || '').toLowerCase().trim();
+            const isWeeklyQuery = /الاسبوع|أسبوع|جمعة|جمعه|المرة اللي فاتت|المرة الفاتت|المره اللي فاتت|المره الفاتت|جمعه فاتت/i.test(cleanMessageText);
+
+            let reportText = '';
+
+            if (isWeeklyQuery) {
+              const variables = compileStudentVariablesBackend(targetStudent, { reportType: 'weekly' }, pointsHistoryList, nowInEgypt);
+              const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+              
+              const studentLogs = pointsHistoryList.filter(log => log.studentId === targetStudent.id && (log.amount || 0) > 0);
+              const reasons = studentLogs.map(log => log.reason).filter(Boolean);
+              const uniqueReasons = [...new Set(reasons)];
+              const traits = uniqueReasons.length > 0 ? uniqueReasons.join('، ') : "الالتزام وحسن السلوك";
+
+              reportText = weeklyTemplate
+                .replace(/{stageClass}/g, stageClass)
+                .replace(/{genderLabel}/g, genderLabel)
+                .replace(/{firstName}/g, firstName)
+                .replace(/{massCount}/g, massCount)
+                .replace(/{serviceCount}/g, serviceCount)
+                .replace(/{traits}/g, traits)
+                .replace(/{confessionStatus}/g, confessionStatus)
+                .replace(/{notes}/g, notes || 'لا يوجد');
+            } else {
+              const variables = compileStudentVariablesBackend(targetStudent, { reportType: 'monthly' }, pointsHistoryList, nowInEgypt);
+              const [stageClass, genderLabel, firstName, massCount, serviceCount, confessionStatus, notes] = variables;
+
+              reportText = monthlyTemplate
+                .replace(/{stageClass}/g, stageClass)
+                .replace(/{genderLabel}/g, genderLabel)
+                .replace(/{firstName}/g, firstName)
+                .replace(/{massCount}/g, massCount)
+                .replace(/{serviceCount}/g, serviceCount)
+                .replace(/{confessionStatus}/g, confessionStatus)
+                .replace(/{notes}/g, notes || 'لا يوجد');
+            }
+
+            const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, reportText);
+
+            await db.collection('webhookQueryLogs').add({
+              senderPhone: senderPhone,
+              senderInfo: senderInfo,
+              studentCode: targetStudent.code || 'AI_QUERY',
+              studentName: targetStudent.name,
+              status: success ? 'sent' : 'failed',
+              reason: success ? 'تقرير كامل تلقائي عبر AI' : 'فشل إرسال رسالة الواتساب عبر الـ API',
+              questionText: messageText,
+              replyText: reportText,
+              isAIQuery: true,
+            });
+          }
+        }
+      } catch (aiErr) {
+        console.error('[Webhook Bot AI ❌] Gemini call failed, activating bulletproof fallback:', aiErr.message);
+        
+        // BULLETPROOF FALLBACK (Unified polite fallback instead of misleading traffic congestion error)
+        const fallbackText = "المعلومة دي مش متوفرة عندي حالياً يا فندم، لكن أنا بلغت خدام الفصل فوراً وسؤالك قيد المتابعة وهيتم الرد عليك في أقرب وقت! ⛪";
+        const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, fallbackText);
+        
+        await db.collection('webhookQueryLogs').add({
+          senderPhone: senderPhone,
+          senderInfo: senderInfo,
+          studentCode: 'AI_UNANSWERED',
+          studentName: 'سؤال معلق (تراجع AI)',
+          status: success ? 'sent' : 'failed',
+          reason: `خطأ الذكاء الاصطناعي: ${aiErr.message}`,
+          questionText: messageText,
+          replyText: fallbackText,
+          isAIQuery: true,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
-
-    const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, reportText);
-
-    await db.collection('webhookQueryLogs').add({
-      senderPhone: senderPhone,
-      senderInfo: senderInfo,
-      studentCode: studentCode,
-      studentName: studentName,
-      status: success ? 'sent' : 'failed',
-      reason: success ? null : 'فشل إرسال رسالة الواتساب عبر الـ API',
-      timestamp: new Date().toISOString()
-    });
 
   } catch (err) {
     console.error('[Webhook Bot Error]:', err);
   }
-});
+}
 
 // Local cron simulation loop (checks every 60 seconds)
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_LOCAL_CRON === 'true') {
