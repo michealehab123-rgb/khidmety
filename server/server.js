@@ -1646,7 +1646,26 @@ app.get('/api/debug', async (req, res) => {
 
   res.json(results);
 });
-// ============ END DEBUG ============
+
+// ============ LIVE TRACE ENDPOINT ============
+app.get('/api/trace', async (req, res) => {
+  try {
+    const logsSnap = await db.collection('webhookQueryLogs')
+      .orderBy('timestamp', 'desc')
+      .limit(15)
+      .get();
+      
+    const logs = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({
+      timestamp: new Date().toISOString(),
+      totalRecentQueries: logs.length,
+      logs: logs
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ============ END DEBUG / TRACE ============
 
 // Webhook Listener (POST /api/webhook)
 app.post('/api/webhook', async (req, res) => {
@@ -2347,7 +2366,38 @@ Respond ONLY with valid JSON. Do not include markdown formatting or \`\`\`json b
         const intent = parsedResponse.intent || 'general_question';
         const issueType = parsedResponse.issue_type || 'none';
         
-        if (intent === 'general_question') {
+        if (intent === 'complaint_or_feedback' || issueType === 'service_issue' || issueType === 'tech_issue') {
+          // COMPLAINT / FEEDBACK / ISSUE ROUTE
+          const replyText = parsedResponse.reply || 'سلام ونعمة يا فندم. تم تسجيل ملاحظتكم وتوجيهها فوراً لخدام وأمانة الخدمة لمتابعتها وحلها. شكراً لحرصكم وصلوا لأجل الخدمة دائماً. ⛪';
+          const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+
+          // Save to unansweredQuestions / complaints collection for servants dashboard
+          await db.collection('unansweredQuestions').add({
+            senderPhone: senderPhone,
+            senderInfo: senderInfo,
+            questionText: messageText,
+            replyText: replyText,
+            issueType: issueType,
+            type: 'complaint',
+            timestamp: new Date().toISOString(),
+            status: 'pending'
+          });
+
+          await db.collection('webhookQueryLogs').add({
+            senderPhone: senderPhone,
+            senderInfo: senderInfo,
+            studentCode: 'AI_FEEDBACK',
+            studentName: 'شكوى / ملاحظة خدمة',
+            status: success ? 'sent' : 'failed',
+            reason: success ? `تم تسجيل الشكوى والرد: ${messageText.slice(0, 30)}` : 'فشل إرسال رسالة الواتساب عبر الـ API',
+            questionText: messageText,
+            replyText: replyText,
+            issueType: issueType,
+            isAIQuery: true,
+            timestamp: new Date().toISOString()
+          });
+
+        } else if (intent === 'general_question') {
           // GENERAL QUESTION ROUTE
           const replyText = parsedResponse.reply || 'أهلاً بك يا فندم! كيف يمكنني مساعدتك؟';
           const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
@@ -2746,6 +2796,24 @@ Respond ONLY with valid JSON. Do not include markdown formatting or \`\`\`json b
               isAIQuery: true,
             });
           }
+        } else {
+          // CATCH-ALL FALLBACK (Ensures no intent ever falls through silently)
+          const replyText = parsedResponse.reply || 'سلام ونعمة يا فندم. تم استلام رسالتكم وتوجيهها لخدام الكنيسة لمتابعتها فوراً! ⛪';
+          const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, replyText);
+
+          await db.collection('webhookQueryLogs').add({
+            senderPhone: senderPhone,
+            senderInfo: senderInfo,
+            studentCode: 'AI_FALLBACK',
+            studentName: 'رد ذكي مباشر',
+            status: success ? 'sent' : 'failed',
+            reason: success ? 'رد احتياطي ذكي مباشر' : 'فشل إرسال رسالة الواتساب عبر الـ API',
+            questionText: messageText,
+            replyText: replyText,
+            issueType: issueType,
+            isAIQuery: true,
+            timestamp: new Date().toISOString()
+          });
         }
       } catch (aiErr) {
         console.error('[Webhook Bot AI ❌] Gemini call failed, activating bulletproof fallback:', aiErr.message);
