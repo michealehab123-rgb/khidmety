@@ -2270,9 +2270,7 @@ Do NOT argue or repeat offensive words. Set intent to "general_question" and ret
 "سلام ونعمة يا فندم. نرجو الالتزام باللياقة والذوق العام في التعامل. هذه القناة مخصصة لخدمة مدارس الأحد وشؤون الكنيسة بكل احترام ومحبة. تم تسجيل الرسالة وتوجيهها للإدارة. ⛪"
 
 You must categorize the message into one of three intents:
-1. "student_query": The user is EXPLICITLY asking to look up or receive their child's attendance/report/grades (e.g., "عايز تقرير ابني", "ابني حضر النهاردة؟", "ممكن تقرير فيلومينا", "كود 1001").
-   CRITICAL: If the user is reporting a problem, complaint, or feedback about why something happened (e.g. "في مشكلة إن ابني مخدش صفات", "ليه مخدش صفة", "الزحمة أثناء توزيع الصفات", "كنت عايز اشتكي"), do NOT categorize as "student_query"! Categorize as "service_issue" under "unknown_question" or "general_question" and provide a warm, empathetic reply confirming that this feedback/problem has been recorded for the Sunday School servants and administrators to investigate.
-   
+1. "student_query": The user is asking about an INDIVIDUAL single student (their attendance today, their report, behavior, traits, or grades). ONLY use "student_query" if the message mentions an individual student's name, a 4-digit student code, or a parent asking specifically about their own child ("ابني", "بنتي").
    For "student_query", determine:
    - "query_type": "full_report" | "specific_attendance" | "none"
    - "student_code": 4-digit code if present in the message, otherwise null.
@@ -2284,8 +2282,8 @@ You must categorize the message into one of three intents:
    - Confession fathers (آباء الاعتراف) are available after the Friday service.
    ${kbText}
 
-3. "unknown_question": The user is asking about something not covered in the facts or KB, or sending a complaint/observation/feedback (e.g. traits distribution issues, crowded service, trip inquiry, special requests, feedback for servants).
-   Generate a polite, warm, and helpful reply in Egyptian Arabic acknowledging their message, confirming it has been recorded for the servants and coordinator to follow up and solve promptly. Put this in "reply".
+3. "unknown_question": The user is asking about something not covered in the facts or KB (e.g. details about a specific trip, registration, servant reports, list requests, complex requests, etc.).
+   Generate a polite apology in Egyptian Arabic saying that this information is not available right now with the bot, but has been forwarded to the servants/admins to handle soon. Put this in "reply".
 
 Respond ONLY with JSON format:
 {
@@ -2296,11 +2294,11 @@ Respond ONLY with JSON format:
   "reply": "..."
 }
 Rule for "issue_type":
-- "service_issue": Set to "service_issue" if the message complains or mentions Sunday School physical service, room heat, AC, chairs, bus, hall, noise, food, schedule, traits distribution crowding, or field logistics (e.g., "الجو حر", "التكييف مش شغال", "مفيش كراسي", "الباص اتأخر", "مخدش صفات", "زحمة في التوزيع").
+- "service_issue": Set to "service_issue" if the message complains about Sunday School physical service, room heat, AC, chairs, bus, hall, noise, food, schedule, or field logistics (e.g., "الجو حر", "التكييف مش شغال", "مفيش كراسي", "الباص اتأخر").
 - "tech_issue": Set to "tech_issue" if the message complains about website bugs, app glitches, bot response delays, server issues, or technical problems (e.g., "البوت بطيء", "في مشكلة في الرد", "الرابط مش شغال").
-- "none": Set to "none" if the message is a regular question, greeting, or standard student report lookup.
+- "none": Set to "none" if the message is a regular question, greeting, or student query without complaints.
 
-Respond ONLY with valid JSON. Do not include markdown formatting or ```json blocks.`;
+Respond ONLY with valid JSON. Do not include markdown formatting or \`\`\`json blocks.`;
 
         console.log(`[Webhook Bot AI 🤖] Calling Gemini for intent classification from ${senderPhone}...`);
         const geminiResponseText = await callGeminiWithRotation(messageText, classificationPrompt);
@@ -2831,3 +2829,5 @@ if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_LOCAL_CRON === '
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`Notification Server running on port ${PORT}`));
+
+export default app;
