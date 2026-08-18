@@ -1353,7 +1353,7 @@ const callGeminiWithRotation = async (promptText, systemInstruction = "") => {
     const apiKey = keys[keyIndex];
     
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: promptText }] }],
         generationConfig: {
@@ -1591,7 +1591,7 @@ app.get('/api/debug', async (req, res) => {
 
   // 3. Gemini API check
   try {
-    const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`, {
+    const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
       body: JSON.stringify({ contents: [{ parts: [{ text: 'Say OK' }] }] })
