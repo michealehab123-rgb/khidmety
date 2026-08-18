@@ -14,15 +14,11 @@
       "config": {
         "includeFiles": [
           "server/service-account.json"
-        ]
+        ],
+        "maxDuration": 60
       }
     }
   ],
-  "functions": {
-    "server/server.js": {
-      "maxDuration": 60
-    }
-  },
   "routes": [
     {
       "src": "/api/(.*)",
