@@ -1568,22 +1568,19 @@ app.get('/api/test-debug', async (req, res) => {
 
 // Webhook Listener (POST /api/webhook)
 app.post('/api/webhook', async (req, res) => {
-  // Return a 200 OK immediately to Meta to acknowledge receipt and prevent retries
-  res.sendStatus(200);
-
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
   if (!accessToken || !phoneNumberId) {
     console.error('[Webhook] WhatsApp credentials missing from environment variables.');
-    return;
+    return res.sendStatus(200);
   }
 
   try {
     const body = req.body;
     
     if (body.object !== 'whatsapp_business_account') {
-      return;
+      return res.sendStatus(200);
     }
 
     const entry = body.entry?.[0];
@@ -1614,23 +1611,22 @@ app.post('/api/webhook', async (req, res) => {
               status: 'failed',
               errorMessage: `فشل تسليم الرسالة من طرف واتساب: ${errDetail}`
             });
-            console.log(`[Webhook Status] Updated reportSendingLog document ${docRef.id} with delivery failure detail.`);
           }
         } catch (logErr) {
           console.error('[Webhook Status] Error updating reportSendingLogs:', logErr);
         }
       }
-      return;
+      return res.sendStatus(200);
     }
     
     if (!value || !value.messages || value.messages.length === 0) {
-      return;
+      return res.sendStatus(200);
     }
 
     const message = value.messages[0];
     
     if (message.type !== 'text') {
-      return;
+      return res.sendStatus(200);
     }
 
     // Deduplication via Firestore: prevent double-processing of the same message ID
@@ -1640,16 +1636,15 @@ app.post('/api/webhook', async (req, res) => {
       const dedupSnap = await dedupRef.get();
       if (dedupSnap.exists) {
         console.log(`[Webhook Bot ⚠️] Ignoring duplicate webhook delivery for message ID: ${messageId}`);
-        return;
+        return res.sendStatus(200);
       }
-      // Mark as processed (TTL: auto-delete via Firestore TTL policy or we do manual cleanup elsewhere)
       await dedupRef.set({ processedAt: new Date().toISOString() });
     }
 
     const senderPhone = message.from;
     const messageText = (message.text?.body || '').trim();
 
-    if (!messageText) return;
+    if (!messageText) return res.sendStatus(200);
     
     // Check if the webhook bot is enabled in settings
     const settingsDoc = await db.collection('settings').doc('notifications').get();
@@ -1658,7 +1653,7 @@ app.post('/api/webhook', async (req, res) => {
     
     if (!webhookBotEnabled) {
       console.log('[Webhook Bot] Disabled in settings. Ignoring message.');
-      return;
+      return res.sendStatus(200);
     }
 
     console.log(`[Webhook Bot 📩] Received message from ${senderPhone}: "${messageText}"`);
@@ -1667,6 +1662,12 @@ app.post('/api/webhook', async (req, res) => {
 
   } catch (err) {
     console.error('[Webhook Listener Error]:', err);
+  }
+
+  // Always respond 200 to Meta AFTER processing is complete
+  // This keeps Vercel's serverless function alive during the entire processing
+  if (!res.headersSent) {
+    res.sendStatus(200);
   }
 });
 
