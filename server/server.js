@@ -2658,22 +2658,10 @@ Respond ONLY with valid JSON. Do not include markdown formatting or \`\`\`json b
             const genderLabel = gender === 'boy' ? 'ابننا البطل' : 'بنتنا الجميلة';
             const classLabel = targetStudent.assignedClass || 'الفصل';
 
-            const attendancePrompt = `اكتب رسالة واتساب دافئة ومرحة بالعامية المصرية لأولياء أمور المخدوم ${firstName} (${genderLabel}) في مدارس أحد ${classLabel}.
-حالة حضور المخدوم اليوم (${todayEgyptStr}) هي: ${attended ? 'حضر القداس والخدمة ومبسوط جداً وسط اخواته' : 'غائب ولم يحضر اليوم ووحشنا جداً ونفسنا يجي المرة القادمة ونحن نصلي لأجله'}.
-اكتب الرسالة بأسلوب خادم مدارس أحد محب ومرحب بالآباء والامهات، مع إضافة إيموجيز مناسبة (⛪، ✨، 🌟).
-ارجع فقط JSON يحتوي على حقل واحد "reply" بالرسالة المكتوبة.`;
+            const attendanceReply = attended
+              ? `سلام ونعمة يا فندم 🌸\nنحب نطمن حضراتكم إن ${genderLabel} *(${targetStudent.name || firstName})* بفصل *(${classLabel})* حضر القداس ومدارس الأحد وكان منور الخدمة وفرحان جداً وسط اخواته! ✨⛪\nصلوا لأجل الخدمة دائماً.`
+              : `سلام ونعمة يا فندم 🌸\nنحب نبلغ حضراتكم إن ${genderLabel} *(${targetStudent.name || firstName})* بفصل *(${classLabel})* لم يحضر خدمة مدارس الأحد الماضية. وحشنا جداً وننتظره ونفرح بيه الجمعة القادمة بكل محبة! 🕊️⛪\nصلوا لأجل الخدمة دائماً.`;
 
-            console.log(`[Webhook Bot AI 🤖] Calling Gemini for specific attendance text: ${firstName}...`);
-            const response = await callGeminiWithRotation(attendancePrompt, "You are a warm Sunday School teacher. Respond only with JSON: {\"reply\": \"...\"}");
-            
-            let parsed = { reply: "" };
-            try {
-              parsed = JSON.parse(cleanJsonString(response));
-            } catch (err) {
-              parsed.reply = response.trim();
-            }
-            
-            const attendanceReply = parsed.reply || `سلام ونعمة يا فندم، ${genderLabel} ${firstName} ${attended ? 'حاضر معنا اليوم ومنور الفصل!' : 'غائب اليوم ونتمنى أن يكون بخير وننتظره الأسبوع القادم.'}`;
             const success = await sendWhatsAppTextMessage(accessToken, phoneNumberId, senderPhone, attendanceReply);
 
             await db.collection('webhookQueryLogs').add({
