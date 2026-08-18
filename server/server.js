@@ -1353,7 +1353,7 @@ const callGeminiWithRotation = async (promptText, systemInstruction = "") => {
     const apiKey = keys[keyIndex];
     
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
       const payload = {
         contents: [{ parts: [{ text: promptText }] }],
         generationConfig: {
@@ -1565,6 +1565,73 @@ app.get('/api/test-debug', async (req, res) => {
 
   res.json(status);
 });
+
+// ============ DEBUG / DIAGNOSTIC ENDPOINT ============
+app.get('/api/debug', async (req, res) => {
+  const results = { timestamp: new Date().toISOString(), tests: {} };
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const geminiKey = process.env.GEMINI_API_KEY_1;
+
+  // 1. Env vars check
+  results.tests.envVars = {
+    WHATSAPP_ACCESS_TOKEN: accessToken ? `✅ موجود (${accessToken.slice(0,20)}...)` : '❌ مفقود',
+    WHATSAPP_PHONE_NUMBER_ID: phoneNumberId ? `✅ ${phoneNumberId}` : '❌ مفقود',
+    GEMINI_API_KEY_1: geminiKey ? `✅ موجود (${geminiKey.slice(0,10)}...)` : '❌ مفقود',
+    FIREBASE_SERVICE_ACCOUNT: process.env.FIREBASE_SERVICE_ACCOUNT ? '✅ موجود' : '❌ مفقود'
+  };
+
+  // 2. Firestore check
+  try {
+    await db.collection('settings').doc('notifications').get();
+    results.tests.firestore = '✅ متصل وشغال';
+  } catch(e) {
+    results.tests.firestore = `❌ فشل: ${e.message}`;
+  }
+
+  // 3. Gemini API check
+  try {
+    const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'Say OK' }] }] })
+    });
+    const gData = await gRes.json();
+    if (gRes.ok) {
+      results.tests.geminiApi = `✅ شغال - رد: ${JSON.stringify(gData?.candidates?.[0]?.content?.parts?.[0]?.text || gData).slice(0,60)}`;
+    } else {
+      results.tests.geminiApi = `❌ فشل (${gRes.status}): ${JSON.stringify(gData).slice(0,150)}`;
+    }
+  } catch(e) {
+    results.tests.geminiApi = `❌ خطأ: ${e.message}`;
+  }
+
+  // 4. WhatsApp token check
+  try {
+    const waRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    const waData = await waRes.json();
+    if (waRes.ok) {
+      results.tests.whatsappToken = `✅ صالح - رقم: ${waData.display_phone_number || waData.id}`;
+    } else {
+      results.tests.whatsappToken = `❌ فشل (${waRes.status}): ${JSON.stringify(waData).slice(0,150)}`;
+    }
+  } catch(e) {
+    results.tests.whatsappToken = `❌ خطأ: ${e.message}`;
+  }
+
+  // 5. Webhook dedup collection check
+  try {
+    const snap = await db.collection('webhookDedupLogs').limit(1).get();
+    results.tests.dedupCollection = `✅ موجود - ${snap.size} سجل`;
+  } catch(e) {
+    results.tests.dedupCollection = `❌ فشل: ${e.message}`;
+  }
+
+  res.json(results);
+});
+// ============ END DEBUG ============
 
 // Webhook Listener (POST /api/webhook)
 app.post('/api/webhook', async (req, res) => {
