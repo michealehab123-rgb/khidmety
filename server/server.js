@@ -1758,12 +1758,32 @@ async function processUserMessage(senderPhone, messageText, value, accessToken, 
   try {
     // Scan database to identify the sender
     let cleanSenderPhone = senderPhone.replace(/\D/g, '');
+    const last10Digits = cleanSenderPhone.slice(-10);
+    const phoneVariants = [
+      last10Digits,
+      `0${last10Digits}`,
+      `20${last10Digits}`,
+      `+20${last10Digits}`,
+      cleanSenderPhone
+    ].filter(Boolean);
 
-    // Check if sender phone is in blockedNumbers collection (Blacklist)
+    // Parallel fetch: Blocked numbers + Direct Parent/Student/Servant lookups in ONE fast roundtrip
+    let matchingAsServant = [];
+    let matchingAsStudent = [];
+    let matchingAsParent = [];
+    let senderInfoParts = [];
+
     try {
-      const blockedSnap = await db.collection('blockedNumbers').get();
+      const [blockedSnap, fatherSnap, motherSnap, studentPhoneSnap, servantSnap] = await Promise.all([
+        db.collection('blockedNumbers').limit(50).get().catch(() => ({ empty: true, docs: [] })),
+        db.collection('students').where('fatherPhone', 'in', phoneVariants).get().catch(() => ({ empty: true, docs: [] })),
+        db.collection('students').where('motherPhone', 'in', phoneVariants).get().catch(() => ({ empty: true, docs: [] })),
+        db.collection('students').where('phone', 'in', phoneVariants).get().catch(() => ({ empty: true, docs: [] })),
+        db.collection('servants').where('phone', 'in', phoneVariants).get().catch(() => ({ empty: true, docs: [] }))
+      ]);
+
+      // Check blocked list
       if (!blockedSnap.empty) {
-        const last10Digits = cleanSenderPhone.slice(-10);
         const isBlocked = blockedSnap.docs.some(docSnap => {
           const data = docSnap.data();
           const bClean = (data.cleanPhone || data.phone || '').replace(/\D/g, '');
@@ -1776,54 +1796,11 @@ async function processUserMessage(senderPhone, messageText, value, accessToken, 
           return;
         }
       }
-    } catch (blockedErr) {
-      console.error('[Blocked Check Error]:', blockedErr);
-    }
-
-    let senderInfoParts = [];
-    let matchingAsServant = [];
-    let matchingAsStudent = [];
-    let matchingAsParent = [];
-
-    try {
-      const last10Digits = cleanSenderPhone.slice(-10);
-      const phoneVariants = [
-        last10Digits,
-        `0${last10Digits}`,
-        `20${last10Digits}`,
-        `+20${last10Digits}`,
-        cleanSenderPhone
-      ].filter(Boolean);
-
-      // Execute indexed queries in parallel
-      const [fatherSnap, motherSnap, studentPhoneSnap, servantSnap] = await Promise.all([
-        db.collection('students').where('fatherPhone', 'in', phoneVariants).get(),
-        db.collection('students').where('motherPhone', 'in', phoneVariants).get(),
-        db.collection('students').where('phone', 'in', phoneVariants).get(),
-        db.collection('servants').where('phone', 'in', phoneVariants).get()
-      ]);
 
       const parentStudentsMap = new Map();
       fatherSnap.docs.forEach(doc => parentStudentsMap.set(doc.id, { id: doc.id, ...doc.data() }));
       motherSnap.docs.forEach(doc => parentStudentsMap.set(doc.id, { id: doc.id, ...doc.data() }));
-
       matchingAsParent = Array.from(parentStudentsMap.values());
-
-      // Emergency contacts check (fallback: only if parent not found, we fetch to check emergency contacts)
-      if (matchingAsParent.length === 0) {
-        console.log('[Webhook Bot] Direct queries yielded no parents. Running emergency contact fallback...');
-        const studentsSnapForSender = await db.collection('students').get();
-        const studentsListForSender = studentsSnapForSender.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        matchingAsParent = studentsListForSender.filter(s => {
-          if (!Array.isArray(s.parentsContacts)) return false;
-          return s.parentsContacts.some(contact => {
-            if (!contact || !contact.phone) return false;
-            const cleanContactPhone = String(contact.phone).replace(/\D/g, '');
-            return cleanContactPhone.slice(-10) === last10Digits;
-          });
-        });
-      }
 
       const studentMap = new Map();
       studentPhoneSnap.docs.forEach(doc => studentMap.set(doc.id, { id: doc.id, ...doc.data() }));
@@ -2237,35 +2214,18 @@ async function processUserMessage(senderPhone, messageText, value, accessToken, 
           return str.replace(/```json/gi, '').replace(/```/g, '').trim();
         };
 
-        // Fetch custom knowledge base from Firebase
+        // Fetch custom knowledge base from Firebase (limit 20 for fast response)
         let kbText = "";
         try {
-          const kbSnap = await db.collection('botKnowledgeBase').get();
-          let hasSafetyRule = false;
-
+          const kbSnap = await db.collection('botKnowledgeBase').limit(20).get();
           if (!kbSnap.empty) {
             kbText = "\nHere are custom questions previously answered by Sunday School servants, use them if the user's question matches:\n";
             kbSnap.docs.forEach(doc => {
               const data = doc.data();
               if (data.question && data.answer) {
                 kbText += `Question: ${data.question}\nAnswer: ${data.answer}\n`;
-                if (data.question.includes('الإساءة') || data.question.includes('غير اللائقة') || data.question.includes('الشتائم')) {
-                  hasSafetyRule = true;
-                }
               }
             });
-          }
-
-          if (!hasSafetyRule) {
-            const safetyQuestion = "التعامل مع الرسائل غير اللائقة أو الشتائم والإساءة للخدمة والكنيسة";
-            const safetyAnswer = "سلام ونعمة يا فندم. نرجو الالتزام باللياقة والذوق العام في التعامل. هذه القناة مخصصة لخدمة مدارس الأحد وشؤون الكنيسة بكل احترام ومحبة. تم تسجيل الرسالة وتوجيهها للإدارة. ⛪";
-            await db.collection('botKnowledgeBase').add({
-              question: safetyQuestion,
-              answer: safetyAnswer,
-              addedBy: "النظام (قواعد اللياقة والوقاية)",
-              timestamp: new Date().toISOString()
-            });
-            kbText += `Question: ${safetyQuestion}\nAnswer: ${safetyAnswer}\n`;
           }
         } catch (kbErr) {
           console.error('[KB Fetch Error]:', kbErr);
