@@ -1347,53 +1347,68 @@ const callGeminiWithRotation = async (promptText, systemInstruction = "") => {
     throw new Error("No Gemini API keys configured");
   }
 
+  // Model cascade: prioritize fast, high-quota, sub-second models with fallback
+  const models = [
+    'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3.6-flash',
+    'gemini-3.5-flash-lite'
+  ];
+
   let lastError = null;
-  for (let attempt = 0; attempt < keys.length; attempt++) {
-    const keyIndex = (currentKeyIndex + attempt) % keys.length;
-    const apiKey = keys[keyIndex];
-    
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`;
-      const payload = {
-        contents: [{ parts: [{ text: promptText }] }],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      };
 
-      if (systemInstruction) {
-        payload.systemInstruction = {
-          parts: [{ text: systemInstruction }]
-        };
-      }
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errMsg = errorData.error?.message || response.statusText;
-        throw new Error(`API Error ${response.status}: ${errMsg}`);
-      }
-
-      const data = await response.json();
-      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  for (const modelName of models) {
+    for (let attempt = 0; attempt < keys.length; attempt++) {
+      const keyIndex = (currentKeyIndex + attempt) % keys.length;
+      const apiKey = keys[keyIndex];
       
-      currentKeyIndex = (keyIndex + 1) % keys.length;
-      return textResponse;
-    } catch (err) {
-      console.error(`[Gemini API Error] Key index ${keyIndex} failed:`, err.message);
-      lastError = err;
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+        const payload = {
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        };
+
+        if (systemInstruction) {
+          payload.systemInstruction = {
+            parts: [{ text: systemInstruction }]
+          };
+        }
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errMsg = errorData.error?.message || response.statusText;
+          console.warn(`[Gemini API Warning] Model ${modelName} with key #${keyIndex + 1} returned ${response.status}: ${errMsg.slice(0, 70)}. Trying next...`);
+          lastError = new Error(`API Error ${response.status}: ${errMsg}`);
+          continue; // Try next key/model
+        }
+
+        const data = await response.json();
+        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        if (textResponse) {
+          currentKeyIndex = (keyIndex + 1) % keys.length;
+          return textResponse;
+        }
+      } catch (err) {
+        console.error(`[Gemini API Error] Model ${modelName} key #${keyIndex + 1} error:`, err.message);
+        lastError = err;
+      }
     }
   }
 
-  throw lastError || new Error("All Gemini API keys failed");
+  throw lastError || new Error("All Gemini models and API keys failed");
 };
 
 const sendWhatsAppTextMessage = async (token, phoneId, to, text) => {
